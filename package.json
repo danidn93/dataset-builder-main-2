@@ -42,11 +42,10 @@
     "@supabase/supabase-js": "^2.86.0",
     "@tanstack/react-query": "^5.83.0",
     "@types/papaparse": "^5.5.0",
-<<<<<<< HEAD
+
     "chart.js": "^4.5.1",
     "chartjs-plugin-datalabels": "^2.2.0",
-=======
->>>>>>> 20f347d6bf4a2bc89fc1bb812bdf4c6aae84fada
+
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -58,13 +57,11 @@
     "lucide-react": "^0.462.0",
     "next-themes": "^0.3.0",
     "papaparse": "^5.5.3",
-<<<<<<< HEAD
+
     "pdf-lib": "^1.17.1",
     "react": "^18.3.1",
     "react-chartjs-2": "^5.3.1",
-=======
-    "react": "^18.3.1",
->>>>>>> 20f347d6bf4a2bc89fc1bb812bdf4c6aae84fada
+
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.61.1",
