@@ -1,0 +1,19 @@
+project_id = "pqindxqwxysvenzwxyjp"
+
+[functions.crear-version]
+verify_jwt = false
+
+[functions.analizar-comentarios]
+verify_jwt = false
+<<<<<<< HEAD
+
+[functions.analisis-version]
+verify_jwt = false
+
+[functions.analisis-filtrado-chunk]
+verify_jwt = false
+
+[functions.create-public-dashboard-link]
+verify_jwt = false
+=======
+>>>>>>> 20f347d6bf4a2bc89fc1bb812bdf4c6aae84fada
