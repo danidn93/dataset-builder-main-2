@@ -41,6 +41,7 @@ interface Data {
   datasetName: string;
   periodo: string;
   votos_por_numero?: any;
+  conteo?: any; // Objeto con los datos de conteo para calcular muestra
 }
 
 function toTitle(str: string) {
@@ -136,6 +137,19 @@ export default function Dashboard() {
 
         const analisis = await aRes.json();
 
+        // 🔥 AQUÍ SE HACE EL FETCH DEL CONTEO DESDE dataset_analysis
+        const conteoRes = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/dataset_analysis?version_id=eq.${versionId}&select=conteo`,
+          {
+            headers: {
+              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            },
+          }
+        );
+        const conteoData = await conteoRes.json();
+        const conteo = conteoData[0]?.conteo || null;
+
         setData({
           global: analisis.global,
           criterios: analisis.criterios,
@@ -143,6 +157,7 @@ export default function Dashboard() {
           datasetName,
           periodo: version.periodo || "",
           votos_por_numero: analisis.votos_por_numero,
+          conteo, // 🔥 Agregar conteo al estado
         });
       } catch (e) {
         alert("Error al cargar dashboard");
@@ -166,7 +181,7 @@ export default function Dashboard() {
       id: "barLabelsTop",
       afterDatasetsDraw(chart: Chart) {
         // Solo aplicar a gráficos de barras, NO al radar
-        if (chart.config.type !== "bar") return;
+        if ((chart.config as any).type !== "bar") return;
         
         const ctx = chart.ctx;
         ctx.save();
@@ -218,12 +233,11 @@ export default function Dashboard() {
         maintainAspectRatio: false,
         plugins: { 
           legend: { display: false }, 
-          datalabels: { display: false },
           tooltip: { 
             enabled: true,
             callbacks: multilineTooltipCallbacks,
           },
-        },
+        } as any,
         scales: { 
           x: {
             display: !isMobile,
@@ -276,12 +290,11 @@ export default function Dashboard() {
         maintainAspectRatio: false,
         plugins: { 
           legend: { display: false }, 
-          datalabels: { display: false },
           tooltip: { 
             enabled: true,
             callbacks: multilineTooltipCallbacks,
           },
-        },
+        } as any,
         scales: { 
           x: {
             display: !isMobile,
@@ -341,12 +354,11 @@ export default function Dashboard() {
         maintainAspectRatio: false,
         plugins: { 
           legend: { display: false }, 
-          datalabels: { display: false },
           tooltip: { 
             enabled: true,
             callbacks: multilineTooltipCallbacks,
           },
-        },
+        } as any,
         scales: { 
           x: {
             display: !isMobile,
@@ -406,8 +418,7 @@ export default function Dashboard() {
               }
             }
           },
-          datalabels: { display: false },
-        },
+        } as any,
         scales: {
           r: {
             angleLines: {
@@ -524,12 +535,13 @@ export default function Dashboard() {
                     const fac = data.facultades[pdfFacultadIdx];
                     const car = fac.carreras[pdfCarreraIdx];
 
+                    // 🔥 AQUÍ SE PASA EL CONTEO AL GENERADOR DE PDF
                     generarReportePDF(
                       {
                         facultad: toTitle(fac.nombre),
                         carrera: toTitle(car.nombre),
                         periodo: data.periodo,
-                        muestra: 0,
+                        conteo: data.conteo, // Pasar conteo para calcular muestra automáticamente
                         criterios: data.criterios.map((c, idx) => ({
                           nombre: c,
                           valor: car.criterios[idx] ?? 0,
