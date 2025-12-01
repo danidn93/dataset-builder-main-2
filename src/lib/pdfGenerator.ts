@@ -225,7 +225,7 @@ export const generarReportePDF = async (
   pdf.setTextColor(0, 0, 0);
 
   const metodologiaItems = [
-    `Instrumento: Encuesta en línea con escala de Likert de 5 niveles: (1: Muy insatisfecho – 5: Muy satisfecho).`,
+    `Instrumento: Encuesta en línea con escala de Likert de 5 niveles: (20: Muy insatisfecho – 100: Muy satisfecho).`,
     `Población objetivo: Estudiantes matriculados en ${data.carrera}.`,
     `Muestra efectiva: ${muestra} estudiantes respondieron la encuesta.`,
     `Periodo de aplicación: ${data.periodo}`,
