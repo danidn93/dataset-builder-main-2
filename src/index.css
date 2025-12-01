@@ -138,3 +138,8 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+canvas {
+  max-width: 100% !important;
+  height: auto !important;
+  display: block !important;
+}

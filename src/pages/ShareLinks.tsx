@@ -1,5 +1,3 @@
-// src/pages/ShareLinks.tsx
-
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -44,6 +42,17 @@ function isUUID(value: string | undefined | null): boolean {
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
       value
     );
+}
+
+// -------------------------------------------------------
+// UTILIDAD PARA CAPITALIZAR
+// -------------------------------------------------------
+function toTitle(str: string) {
+  return str
+    .toLowerCase()
+    .split(" ")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
 }
 
 // -------------------------------------------------------
@@ -246,6 +255,19 @@ export default function ShareLinks() {
         <div className="space-y-4">
           {links.map((link) => {
             const url = `${window.location.origin}/public-static/${link.token}`;
+            
+            // Extraer información de filters
+            const facultadName = link.filters?.facultad || "Sin especificar";
+            const carreraName = link.filters?.carrera;
+            
+            // Determinar qué mostrar según el tipo
+            const displayTitle = link.link_type === "carrera" && carreraName
+              ? toTitle(carreraName)
+              : toTitle(facultadName);
+
+            const displaySubtitle = link.link_type === "carrera" && carreraName
+              ? `Facultad: ${toTitle(facultadName)}`
+              : null;
 
             return (
               <Card
@@ -254,22 +276,35 @@ export default function ShareLinks() {
               >
                 <CardHeader>
                   <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle className="flex items-center gap-3">
-                        <span className="text-2xl font-bold text-accent capitalize">
-                          {link.link_type}
-                        </span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <Badge className={link.link_type === "facultad" ? "bg-[#3c7aa0]" : "bg-[#fc7e00]"}>
+                          {link.link_type === "facultad" ? "Facultad" : "Carrera"}
+                        </Badge>
                         <Badge className="bg-success">Activo</Badge>
+                      </div>
+
+                      <CardTitle className="text-xl font-bold text-[#1c3247] mb-1">
+                        {displayTitle}
                       </CardTitle>
 
-                      <CardDescription className="mt-2 text-sm">
-                        {new Date(link.created_at).toLocaleString()}
+                      {displaySubtitle && (
+                        <p className="text-sm text-muted-foreground mb-2">
+                          {displaySubtitle}
+                        </p>
+                      )}
+
+                      <CardDescription className="text-xs">
+                        Creado: {new Date(link.created_at).toLocaleString()}
                       </CardDescription>
                     </div>
 
                     <div className="flex gap-2">
                       <Button
-                        onClick={() => navigator.clipboard.writeText(url)}
+                        onClick={() => {
+                          navigator.clipboard.writeText(url);
+                          toast.success("Link copiado al portapapeles");
+                        }}
                         variant="outline"
                         className="border-accent text-accent hover:bg-accent/10"
                       >
@@ -289,7 +324,10 @@ export default function ShareLinks() {
                 </CardHeader>
 
                 <CardContent>
-                  <div className="text-sm break-all">{url}</div>
+                  <div className="bg-gray-50 p-3 rounded-md">
+                    <p className="text-xs text-gray-500 mb-1">URL del Link:</p>
+                    <div className="text-sm break-all font-mono text-gray-700">{url}</div>
+                  </div>
                 </CardContent>
               </Card>
             );
@@ -356,7 +394,7 @@ export default function ShareLinks() {
                 <SelectContent>
                   {analisis.facultades.map((f, i) => (
                     <SelectItem value={String(i)} key={i}>
-                      {f.nombre}
+                      {toTitle(f.nombre)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -375,7 +413,7 @@ export default function ShareLinks() {
                     {analisis.facultades[selectedFacultadIdx].carreras.map(
                       (c, i) => (
                         <SelectItem value={String(i)} key={i}>
-                          {c.nombre}
+                          {toTitle(c.nombre)}
                         </SelectItem>
                       )
                     )}

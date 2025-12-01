@@ -10,7 +10,7 @@ import {
   CardTitle
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Plus, FileText, ExternalLink, Share2 } from "lucide-react";
+import { ArrowLeft, Plus, FileText, ExternalLink, Share2, Calculator } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/sonner";
 interface Version {
@@ -155,7 +155,18 @@ const DatasetVersions = () => {
                       </CardDescription>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex gap-3">
+                      <Button
+                        onClick={() =>
+                          navigate(`/datasets/${datasetId}/versions/${version.id}/tables`)
+                        }
+                        variant="outline"
+                        className="border-accent text-accent hover:bg-accent/10"
+                      >
+                        <Calculator className="mr-2 h-4 w-4" />
+                        Tablas Detalladas
+                      </Button>
+
                       <Button
                         onClick={() =>
                           navigate(

@@ -1,10 +1,14 @@
-// ======================================================
-// DASHBOARD PÚBLICO SOLO LECTURA (PublicFullDashboard)
-// ======================================================
-
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import Chart from "chart.js/auto";
+
+// Colores institucionales UNEMI
+const COLORES_UNEMI = [
+  "#1c3247", "#264763", "#335f7f", "#3c7aa0", "#4597bf", // Azules
+  "#fc7e00", "#ea7d06", "#f48521", "#f78d37", "#f7964d", // Naranjas
+  "#fe9900", "#da8b33", "#f28f19", "#ef922e", "#f49d47", // Naranjas alternos
+  "#002E45", "#222223" // Azul oscuro y negro
+];
 
 interface Carrera {
   nombre: string;
@@ -22,68 +26,62 @@ interface Data {
   global: number;
   criterios: string[];
   facultades: Facultad[];
-  periodo: string;
   datasetName: string;
+  periodo: string;
+  votos_por_numero?: any;
 }
 
-// -----------------------------
-// Title Case
-// -----------------------------
 function toTitle(str: string) {
   return str
     .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim()
     .split(" ")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
 }
 
-// -----------------------------
-// MULTILÍNEA PARA RADAR
-// -----------------------------
-function wrapLabel(text: string, maxCharsPerLine = 20): string | string[] {
+function wrapLabel(text: string, maxWidth: number): string[] {
   const words = text.split(" ");
   const lines: string[] = [];
-  let currentLine = "";
+  let currentLine = words[0];
 
-  for (const word of words) {
-    const testLine = currentLine ? `${currentLine} ${word}` : word;
-    if (testLine.length > maxCharsPerLine) {
-      if (currentLine) lines.push(currentLine);
-      currentLine = word;
-    } else {
+  for (let i = 1; i < words.length; i++) {
+    const testLine = currentLine + " " + words[i];
+    if (testLine.length <= maxWidth) {
       currentLine = testLine;
+    } else {
+      lines.push(currentLine);
+      currentLine = words[i];
     }
   }
-  if (currentLine) lines.push(currentLine);
-
-  // Si es una sola línea corta, devolver string; si no, array (Chart.js lo soporta)
-  return lines.length === 1 ? lines[0] : lines;
+  lines.push(currentLine);
+  return lines;
 }
 
 export default function PublicFullDashboard() {
   const { token } = useParams();
+
   const [data, setData] = useState<Data | null>(null);
   const [loading, setLoading] = useState(true);
-
   const [selectedFacIdx, setSelectedFacIdx] = useState(0);
   const [selectedCarIdx, setSelectedCarIdx] = useState(0);
 
   const canvases = {
     facultades: useRef<HTMLCanvasElement>(null),
-    global: useRef<HTMLCanvasElement>(null),
+    globalCriterios: useRef<HTMLCanvasElement>(null),
     detalle: useRef<HTMLCanvasElement>(null),
     radar: useRef<HTMLCanvasElement>(null),
   };
 
   const charts = useRef<Record<string, Chart>>({});
 
-  // ======================================
-  // CARGAR DATA
-  // ======================================
   useEffect(() => {
-    const load = async () => {
+    const style = document.createElement("style");
+    style.innerHTML = `body { margin: 0 !important; padding: 0 !important; background: #1c3247 !important; }`;
+    document.head.appendChild(style);
+  }, []);
+
+  useEffect(() => {
+    const cargar = async () => {
       try {
         const res = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-public-dashboard`,
@@ -102,403 +100,406 @@ export default function PublicFullDashboard() {
         if (!json.data) throw new Error("Token inválido");
 
         setData(json.data);
-      } catch (err) {
-        alert("Error cargando dashboard público");
+      } catch (e) {
+        alert("Error al cargar dashboard público");
       } finally {
         setLoading(false);
       }
     };
-
-    load();
+    cargar();
   }, [token]);
 
-  // ======================================================
-  // RENDER GRAFICOS
-  // ======================================================
   useEffect(() => {
     if (!data) return;
 
     Object.values(charts.current).forEach((c) => c?.destroy());
     charts.current = {};
 
-    // ======================================================
-    // PLUGIN → LABELS EXTERNOS (2 DECIMALES)
-    // ======================================================
-    const externalLabels = {
-      id: "externalLabels",
+    const isMobile = window.innerWidth < 768;
+
+    // Plugin: Etiquetas arriba en naranja con mejor espaciado en móvil (SOLO PARA GRÁFICOS DE BARRAS)
+    const barLabelsTop = {
+      id: "barLabelsTop",
       afterDatasetsDraw(chart: Chart) {
+        // Solo aplicar a gráficos de barras, NO al radar
+        if (chart.config.type !== "bar") return;
+        
         const ctx = chart.ctx;
         ctx.save();
-        ctx.font = "bold 13px Segoe UI, Arial";
+        ctx.font = `bold ${isMobile ? '10px' : '14px'} Montserrat, sans-serif`;
         ctx.fillStyle = "#fc7e00";
         ctx.textAlign = "center";
 
-        chart.data.datasets[0].data.forEach((v: any, i: number) => {
-          const meta = chart.getDatasetMeta(0);
-          const bar = meta.data[i];
-          if (!bar) return;
-
-          ctx.fillText(Number(v).toFixed(2) + "%", bar.x, bar.y - 8);
+        chart.data.datasets.forEach((ds, i) => {
+          chart.getDatasetMeta(i).data.forEach((bar: any, j: number) => {
+            const val = ds.data[j] as number;
+            const yOffset = isMobile ? -5 : -10;
+            ctx.fillText(val.toFixed(2) + "%", bar.x, bar.y + yOffset);
+          });
         });
 
         ctx.restore();
       },
     };
 
-    // ======================================================
-    // PLUGIN → RADAR SOLO 1 LABEL DE VALOR
-    // ======================================================
-    const radarValueLabels = {
-        id: "radarValueLabels",
-        afterDatasetsDraw(chart: Chart) {
-            const sc = chart.scales["r"];
-            if (!sc) return;
+    Chart.register(barLabelsTop);
 
-            const ctx = chart.ctx;
-            ctx.save();
-            ctx.font = "bold 12px Segoe UI, Arial";
-            ctx.fillStyle = "#fc7e00";
-            ctx.textAlign = "center";
-
-            const ds = chart.data.datasets[0];
-            const meta = chart.getDatasetMeta(0);
-
-            meta.data.forEach((p: any, i: number) => {
-            const val = Number(ds.data[i]);
-
-            const angle = sc.getIndexAngle(i) - Math.PI / 2;
-            const radius = sc.getDistanceFromCenterForValue(val) + 20; // separo del punto
-
-            const x = sc.xCenter + Math.cos(angle) * radius;
-            const y = sc.yCenter + Math.sin(angle) * radius;
-
-            ctx.fillText(val.toFixed(2) + "%", x, y);
-            });
-
-            ctx.restore();
-        },
+    // Configuración de tooltips multilínea
+    const multilineTooltipCallbacks = {
+      title: (items: any) => {
+        const idx = items[0].dataIndex;
+        const label = items[0].chart.data.labels[idx];
+        // Si es array (multilínea), unirlo; si no, devolverlo
+        return Array.isArray(label) ? label.join(" ") : label;
+      },
     };
 
-    Chart.register(externalLabels, radarValueLabels);
-
-    // ======================================================
-    // CRITERIOS (PROMEDIOS GLOBALES)
-    // ======================================================
-    const proms = data.criterios.map((_, idx) => {
-      let sum = 0;
-      let c = 0;
-
-      data.facultades.forEach((f) =>
-        f.carreras.forEach((car) => {
-          const v = car.criterios[idx];
-          if (typeof v === "number") {
-            sum += v;
-            c++;
-          }
-        })
-      );
-
-      return c ? sum / c : 0;
-    });
-
-    // ======================================================
     // FACULTADES
-    // ======================================================
+    const facultadesColors = data.facultades.map((_, i) => COLORES_UNEMI[i % COLORES_UNEMI.length]);
+    
     charts.current.facultades = new Chart(canvases.facultades.current!, {
       type: "bar",
       data: {
-        labels: data.facultades.map((f) => toTitle(f.nombre)),
+        labels: data.facultades.map((f) => wrapLabel(toTitle(f.nombre), 25)),
         datasets: [
           {
             data: data.facultades.map((f) => f.total),
-            backgroundColor: ["#1c3247", "#fc7e00", "#f48521", "#4597bf"],
+            backgroundColor: facultadesColors,
             borderRadius: 7,
-            datalabels: { display: false },
           },
         ],
       },
       options: {
-        plugins: {
-          legend: { display: false },
-          externalLabels: true,
-          tooltip: { enabled: false },
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { 
+          legend: { display: false }, 
+          datalabels: { display: false },
+          tooltip: { 
+            enabled: true,
+            callbacks: multilineTooltipCallbacks,
+          },
         },
-        scales: { y: { beginAtZero: true, max: 100 } },
+        scales: { 
+          x: {
+            display: !isMobile,
+            ticks: {
+              font: { 
+                size: 12,
+                family: 'Inter, sans-serif'
+              },
+              maxRotation: 0,
+              minRotation: 0,
+            }
+          },
+          y: { 
+            beginAtZero: true, 
+            max: 100,
+            display: !isMobile,
+          } 
+        },
       },
     });
 
-    // ======================================================
-    // CRITERIOS GLOBAL
-    // ======================================================
-    charts.current.global = new Chart(canvases.global.current!, {
+    // GLOBAL CRITERIOS
+    const proms = data.criterios.map((_, i) => {
+      let sum = 0, count = 0;
+      data.facultades.forEach((f) =>
+        f.carreras.forEach((c) => {
+          if (!isNaN(c.criterios[i])) {
+            sum += c.criterios[i];
+            count++;
+          }
+        })
+      );
+      return count ? sum / count : 0;
+    });
+
+    const criteriosColors = data.criterios.map((_, i) => COLORES_UNEMI[i % COLORES_UNEMI.length]);
+
+    charts.current.global = new Chart(canvases.globalCriterios.current!, {
       type: "bar",
       data: {
-        labels: data.criterios,
-        datasets: [
-          {
-            data: proms,
-            backgroundColor: "#fc7e00",
-            borderRadius: 6,
-            datalabels: { display: false },
-          },
-        ],
+        labels: data.criterios.map((c) => wrapLabel(c, 20)),
+        datasets: [{ 
+          data: proms, 
+          backgroundColor: criteriosColors, 
+          borderRadius: 6 
+        }],
       },
       options: {
-        plugins: {
-          legend: { display: false },
-          externalLabels: true,
-          tooltip: { enabled: false },
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { 
+          legend: { display: false }, 
+          datalabels: { display: false },
+          tooltip: { 
+            enabled: true,
+            callbacks: multilineTooltipCallbacks,
+          },
         },
-        scales: { y: { max: 100 } },
+        scales: { 
+          x: {
+            display: !isMobile,
+            ticks: {
+              font: { 
+                size: 11,
+                family: 'Inter, sans-serif'
+              },
+              maxRotation: 0,
+              minRotation: 0,
+            }
+          },
+          y: { 
+            max: 100,
+            display: !isMobile,
+          } 
+        },
       },
     });
 
-    updateDetail();
+    actualizarDetalle();
   }, [data]);
 
-  // ======================================================
-  // DETALLE FACULTAD / CARRERA
-  // ======================================================
-  const updateDetail = () => {
+  const actualizarDetalle = () => {
     if (!data) return;
 
     const fac = data.facultades[selectedFacIdx];
     const car = fac.carreras[selectedCarIdx];
+    const isMobile = window.innerWidth < 768;
 
-    // BARRAS DETALLE
+    const detalleColors = data.criterios.map((_, i) => COLORES_UNEMI[i % COLORES_UNEMI.length]);
+
+    const multilineTooltipCallbacks = {
+      title: (items: any) => {
+        const idx = items[0].dataIndex;
+        const label = items[0].chart.data.labels[idx];
+        return Array.isArray(label) ? label.join(" ") : label;
+      },
+    };
+
+    // DETALLE
     if (charts.current.detalle) charts.current.detalle.destroy();
     charts.current.detalle = new Chart(canvases.detalle.current!, {
       type: "bar",
       data: {
-        labels: data.criterios,
+        labels: data.criterios.map((c) => wrapLabel(c, 20)),
         datasets: [
-          {
-            data: car.criterios,
-            backgroundColor: "#fc7e00",
-            borderRadius: 7,
-            datalabels: { display: false },
+          { 
+            data: car.criterios, 
+            backgroundColor: detalleColors, 
+            borderRadius: 6 
           },
         ],
       },
       options: {
-        plugins: {
-          legend: { display: false },
-          externalLabels: true,
-          tooltip: { enabled: false },
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { 
+          legend: { display: false }, 
+          datalabels: { display: false },
+          tooltip: { 
+            enabled: true,
+            callbacks: multilineTooltipCallbacks,
+          },
         },
-        scales: { y: { max: 100 } },
+        scales: { 
+          x: {
+            display: !isMobile,
+            ticks: {
+              font: { 
+                size: 11,
+                family: 'Inter, sans-serif'
+              },
+              maxRotation: 0,
+              minRotation: 0,
+            }
+          },
+          y: { 
+            max: 100,
+            display: !isMobile,
+          } 
+        },
       },
     });
 
-    // RADAR
-    if (charts.current.radar) charts.current.radar.destroy();    
-        charts.current.radar = new Chart(canvases.radar.current, {
-    type: "radar",
-    data: {
-      labels: data.criterios.map((c: string) => wrapLabel(c, 22)),
-      datasets: [
-        {
-          label: toTitle(car.nombre),
-          data: car.criterios,
-          backgroundColor: "rgba(252, 126, 0, 0.15)",
-          borderColor: "#fc7e00",
-          borderWidth: 3,
-          pointBackgroundColor: "#fc7e00",
-          pointBorderColor: "#fff",
-          pointBorderWidth: 2,
-          pointRadius: 5,
-          pointHoverRadius: 8,
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      layout: {
-        padding: {
-          top: 90,
-          bottom: 90,
-          left: 90,
-          right: 90,
-        },
-      },
-      plugins: {
-        legend: { display: false },
-        tooltip: { enabled: true },
-      },
-      scales: {
-        r: {
-          min: 60,
-          max: 100,
-          ticks: { display: false },
-          pointLabels: {
-            font: { size: 13, weight: "600" as const },
-            color: "#1c3247",
-            padding: 25,
+    // RADAR - Labels multilinea en escritorio, sin etiquetas de porcentaje encima
+    if (charts.current.radar) charts.current.radar.destroy();
+    charts.current.radar = new Chart(canvases.radar.current!, {
+      type: "radar",
+      data: {
+        labels: data.criterios.map((c) => isMobile ? "" : wrapLabel(c, 25)),
+        datasets: [
+          {
+            label: toTitle(car.nombre),
+            data: car.criterios,
+            backgroundColor: "rgba(252, 126, 0, 0.15)",
+            borderColor: "#fc7e00",
+            borderWidth: 2,
+            pointBackgroundColor: "#fc7e00",
+            pointBorderColor: "#fff",
+            pointHoverBackgroundColor: "#fff",
+            pointHoverBorderColor: "#fc7e00",
+            pointRadius: 4,
+            pointHoverRadius: 6,
           },
-          grid: { color: "#e2e8f0" },
-          angleLines: { color: "#e2e8f0" },
-        },
+        ],
       },
-    },
-    plugins: [
-      {
-        id: "radarSinglePercentage",
-        afterDatasetsDraw(chart) {
-          const { ctx, scales: { r } } = chart;
-          const values = chart.data.datasets[0].data as number[];
-
-          ctx.save();
-          ctx.font = "bold 15px Segoe UI";
-          ctx.fillStyle = "#fc7e00";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-
-          values.forEach((value, i) => {
-            const angle = r.getIndexAngle(i) - Math.PI / 2;
-            const distance = r.getDistanceFromCenterForValue(value);
-            const radius = distance + 45; // separación perfecta
-
-            const x = r.xCenter + Math.cos(angle) * radius;
-            let y = r.yCenter + Math.sin(angle) * radius;
-
-            // Ajuste extra si el label del criterio tiene más de una línea
-            const label = chart.data.labels[i];
-            const lines = Array.isArray(label) ? label.length : 1;
-            if (lines > 1) {
-              y += (Math.sign(Math.sin(angle)) || 1) * 15 * lines;
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { 
+          legend: { display: false }, 
+          tooltip: { 
+            enabled: true,
+            callbacks: {
+              title: (items) => {
+                const idx = items[0].dataIndex;
+                return data.criterios[idx];
+              },
+              label: (context) => {
+                return context.parsed.r.toFixed(2) + "%";
+              }
             }
-
-            ctx.fillText(`${value.toFixed(1)}%`, x, y);
-          });
-
-          ctx.restore();
+          },
+          datalabels: { display: false },
+        },
+        scales: {
+          r: {
+            angleLines: {
+              color: 'rgba(0, 0, 0, 0.1)'
+            },
+            grid: {
+              color: 'rgba(0, 0, 0, 0.1)'
+            },
+            ticks: { 
+              display: !isMobile,
+              backdropColor: 'transparent',
+              font: {
+                size: 10,
+                family: 'Inter, sans-serif'
+              }
+            },
+            pointLabels: {
+              display: !isMobile,
+              font: {
+                size: 11,
+                family: 'Inter, sans-serif'
+              },
+              color: '#1c3247',
+              padding: 15,
+            },
+            suggestedMin: 60,
+            suggestedMax: 100,
+          },
         },
       },
-    ],
-  });
+    });
   };
 
-  useEffect(() => updateDetail(), [selectedFacIdx, selectedCarIdx]);
+  useEffect(() => actualizarDetalle(), [selectedFacIdx, selectedCarIdx, data]);
 
-  // ======================================================
-  // RENDER
-  // ======================================================
   if (loading)
-    return (
-      <div className="text-white text-3xl text-center mt-24">
-        Cargando Dashboard Público...
-      </div>
-    );
+    return <div className="text-white text-3xl text-center mt-24 font-aventura">Cargando...</div>;
 
   if (!data)
-    return (
-      <div className="text-red-500 text-3xl text-center mt-24">
-        Error cargando datos
-      </div>
-    );
+    return <div className="text-red-500 text-3xl text-center mt-24 font-aventura">Error al cargar datos</div>;
 
   const fac = data.facultades[selectedFacIdx];
 
-  // ========================================
-  // TABLA RESUMEN FACULTADES
-  // ========================================
-  const resumenFacultades = data.facultades.map((f) => {
-    const best = [...f.carreras].sort((a, b) => b.total - a.total)[0];
-    const worst = [...f.carreras].sort((a, b) => a.total - b.total)[0];
-    return { ...f, best, worst };
-  });
-
   return (
-    <div
-      className="min-h-screen font-sans p-6"
-      style={{
-        background: "linear-gradient(120deg,#1c3247 70%,#3c7aa0 100%)",
-      }}
-    >
+    <div className="min-h-screen font-avenir">
       <div
         style={{
-          maxWidth: "1100px",
-          margin: "2rem auto",
+          maxWidth: "1200px",
+          margin: "2em auto",
           background: "white",
-          borderRadius: "20px",
-          padding: "40px",
-          boxShadow: "0 8px 28px rgba(0,0,0,0.18)",
+          borderRadius: "16px",
+          padding: window.innerWidth < 768 ? "20px" : "40px",
+          boxShadow: "0 6px 24px rgba(28,50,71,0.13)",
         }}
       >
-        <h1 className="text-3xl font-bold text-[#1c3247]">
-          Dashboard Público — {toTitle(data.datasetName)}
+        <h1 className="text-2xl sm:text-3xl font-bold text-[#1c3247] font-aventura">
+          Dashboard de Facultades y Carreras
         </h1>
 
-        <div className="mt-3 text-lg">
-          <strong className="text-[#fc7e00]">Período:</strong>{" "}
-          {data.periodo}
+        <div className="mt-4 text-base sm:text-lg font-avenir">
+          <strong className="text-[#fc7e00]">Dataset:</strong> {data.datasetName} |
+          <strong className="text-[#fc7e00] ml-3">Período:</strong> {data.periodo}
         </div>
 
-        {/* GLOBAL */}
-        <div className="flex items-center gap-4 mt-6">
-          <span className="text-xl font-bold text-[#1c3247]">
-            Porcentaje Global:
-          </span>
-          <div className="bg-[#fc7e00] text-white text-4xl font-bold px-10 py-4 rounded-xl">
+        <div className="flex flex-col sm:flex-row items-center gap-4 mt-6">
+          <span className="text-lg sm:text-xl font-bold text-[#1c3247] font-aventura">Porcentaje Global:</span>
+          <div className="bg-[#fc7e00] text-white text-3xl sm:text-4xl font-bold px-8 sm:px-10 py-3 sm:py-4 rounded-xl font-aventura">
             {data.global.toFixed(2)}%
           </div>
         </div>
 
-        {/* FACULTADES CHART */}
-        <h2 className="text-[#1c3247] text-xl mt-10">Resumen por Facultad</h2>
-        <canvas ref={canvases.facultades}></canvas>
+        <h2 className="text-[#1c3247] text-lg sm:text-xl mt-10 font-aventura">Resumen General de Facultades</h2>
+        <div style={{ height: window.innerWidth < 768 ? "300px" : "400px" }}>
+          <canvas ref={canvases.facultades}></canvas>
+        </div>
 
-        {/* TABLA RESUMEN */}
-        <h2 className="text-[#1c3247] text-xl mt-10">
-          Mejores y Peores Carreras por Facultad
-        </h2>
+        <h2 className="text-[#1c3247] text-lg sm:text-xl mt-10 mb-3 font-aventura">Resumen por Facultad</h2>
 
-        <table className="w-full mt-4 border-collapse">
-          <thead className="bg-[#1c3247] text-white">
-            <tr>
-              <th className="p-3 text-left">Facultad</th>
-              <th className="p-3 text-center">Global</th>
-              <th className="p-3 text-left">Mejor Carrera</th>
-              <th className="p-3 text-left">Peor Carrera</th>
-            </tr>
-          </thead>
-          <tbody>
-            {resumenFacultades.map((f, i) => (
-              <tr key={i} className="border-b">
-                <td className="p-3 font-semibold">{toTitle(f.nombre)}</td>
-                <td className="p-3 text-center font-bold text-[#fc7e00]">
-                  {f.total.toFixed(2)}%
-                </td>
-                <td className="p-3">
-                  {toTitle(f.best.nombre)} ({f.best.total.toFixed(2)}%)
-                </td>
-                <td className="p-3">
-                  {toTitle(f.worst.nombre)} ({f.worst.total.toFixed(2)}%)
-                </td>
+        <div className="overflow-x-auto mt-4">
+          <table className="w-full border-collapse rounded-lg overflow-hidden shadow-md">
+            <thead className="bg-[#1c3247] text-white">
+              <tr>
+                <th className="p-2 sm:p-3 text-left text-sm sm:text-base font-aventura">Facultad</th>
+                <th className="p-2 sm:p-3 text-center text-sm sm:text-base font-aventura">Total Global</th>
+                <th className="p-2 sm:p-3 text-left text-sm sm:text-base font-aventura">Carrera Mejor Puntuada</th>
+                <th className="p-2 sm:p-3 text-left text-sm sm:text-base font-aventura">Carrera Menor Puntuada</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="font-avenir text-sm sm:text-base">
+              {data.facultades.map((fac, idx) => {
+                const carrerasOrdenadas = [...fac.carreras].sort((a, b) => b.total - a.total);
+                const mejor = carrerasOrdenadas[0];
+                const peor = carrerasOrdenadas[carrerasOrdenadas.length - 1];
 
-        {/* CRITERIOS GLOBAL */}
-        <h2 className="text-[#1c3247] text-xl mt-10">
-          Porcentaje Global por Criterio
-        </h2>
-        <canvas ref={canvases.global}></canvas>
+                return (
+                  <tr key={idx} className="border-b hover:bg-gray-50">
+                    <td className="p-2 sm:p-3 font-semibold">{toTitle(fac.nombre)}</td>
+                    <td className="p-2 sm:p-3 text-center">
+                      <span
+                        className="px-2 sm:px-3 py-1 rounded-full text-white font-semibold font-aventura text-xs sm:text-base"
+                        style={{
+                          background:
+                            fac.total < 75 ? "#c0392b" : fac.total < 80 ? "#f39c12" : "#27ae60",
+                        }}
+                      >
+                        {fac.total.toFixed(2)}%
+                      </span>
+                    </td>
+                    <td className="p-2 sm:p-3">
+                      {toTitle(mejor.nombre)} ({mejor.total.toFixed(2)}%)
+                    </td>
+                    <td className="p-2 sm:p-3">
+                      {toTitle(peor.nombre)} ({peor.total.toFixed(2)}%)
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
 
-        {/* DETALLE FACULTAD */}
-        <h2 className="text-[#1c3247] text-xl mt-10">
-          Detalle por Facultad
-        </h2>
+        <div style={{ height: "50px" }}></div>
+        <h2 className="text-[#1c3247] text-lg sm:text-xl mt-10 font-aventura">Porcentaje Global por Criterio</h2>
+        <div style={{ height: window.innerWidth < 768 ? "250px" : "300px" }}>
+          <canvas ref={canvases.globalCriterios}></canvas>
+        </div>
+
+        <h2 className="text-[#1c3247] text-lg sm:text-xl mt-10 font-aventura">Detalle por Facultad</h2>
 
         <select
-          className="border-2 border-[#3c7aa0] rounded-md p-2 mt-3"
           value={selectedFacIdx}
           onChange={(e) => {
             setSelectedFacIdx(+e.target.value);
             setSelectedCarIdx(0);
           }}
+          className="mt-3 border-2 border-[#3c7aa0] rounded-md p-2 text-base sm:text-lg font-avenir w-full sm:w-auto"
         >
           {data.facultades.map((f, i) => (
             <option key={i} value={i}>
@@ -507,35 +508,36 @@ export default function PublicFullDashboard() {
           ))}
         </select>
 
-        <h3 className="mt-4 text-xl font-semibold">
+        <h3 className="mt-4 text-lg sm:text-xl font-semibold font-aventura">
           {toTitle(fac.nombre)} ({fac.total.toFixed(2)}%)
         </h3>
 
-        {/* TABLA CARRERAS */}
         <table className="w-full mt-4 border-collapse">
           <thead className="bg-[#1c3247] text-white">
             <tr>
-              <th className="p-2 text-left">Carrera</th>
-              <th className="p-2 text-center">Total</th>
+              <th className="p-2 text-left text-sm sm:text-base font-aventura">Carrera</th>
+              <th className="p-2 text-center text-sm sm:text-base font-aventura">Total</th>
             </tr>
           </thead>
-          <tbody>
-            {fac.carreras.map((car, i) => (
-              <tr key={i} className="border-b">
-                <td className="p-2">{toTitle(car.nombre)}</td>
-                <td className="p-2 text-center font-bold text-[#fc7e00]">
-                  {car.total.toFixed(2)}%
-                </td>
-              </tr>
-            ))}
+          <tbody className="font-avenir text-sm sm:text-base">
+            {fac.carreras.map((car, i) => {
+              const color = car.total < 75 ? "#c0392b" : car.total < 80 ? "#f39c12" : "#27ae60";
+              return (
+                <tr key={i}>
+                  <td className="p-2 border-b">{toTitle(car.nombre)}</td>
+                  <td className="p-2 text-center font-bold border-b font-aventura" style={{ color }}>
+                    {car.total.toFixed(2)}%
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
 
-        {/* SELECT CARRERA */}
         <select
-          className="border-2 border-[#fc7e00] rounded-md p-2 mt-6"
           value={selectedCarIdx}
           onChange={(e) => setSelectedCarIdx(+e.target.value)}
+          className="mt-6 mb-4 border-2 border-[#fc7e00] rounded-md p-2 text-base sm:text-lg font-avenir w-full"
         >
           {fac.carreras.map((c, i) => (
             <option key={i} value={i}>
@@ -544,15 +546,14 @@ export default function PublicFullDashboard() {
           ))}
         </select>
 
-        {/* BARRAS DETALLE */}
-        <canvas ref={canvases.detalle} className="mt-6"></canvas>
+        <div style={{ height: window.innerWidth < 768 ? "250px" : "300px" }}>
+          <canvas ref={canvases.detalle}></canvas>
+        </div>
 
-        {/* RADAR 
-        <h3 className="text-[#1c3247] text-xl mt-10">Radar</h3>
-
-        <div style={{ width: "100%", height: "550px", margin: "0 auto" }}>
+        <h3 className="text-[#1c3247] text-lg sm:text-xl mt-12 font-aventura">Radar de la Carrera</h3>
+        <div style={{ height: window.innerWidth < 768 ? "300px" : "450px" }}>
           <canvas ref={canvases.radar}></canvas>
-        </div>*/}
+        </div>
       </div>
     </div>
   );

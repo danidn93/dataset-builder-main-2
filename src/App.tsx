@@ -21,7 +21,7 @@ import NotFound from "./pages/NotFound";
 
 import PublicStaticDashboard from "./pages/PublicStaticDashboard";
 import PublicFullDashboard from "./pages/PublicFullDashboard";
-
+import TableAnalysis from "./pages/dataset-versions/TablesAnalysis";
 
 const queryClient = new QueryClient();
 
@@ -52,6 +52,7 @@ const App = () => (
 
           <Route path="/public-static/:token" element={<PublicStaticDashboard />} />  
           <Route path="/public-dashboard/:token" element={<PublicFullDashboard />} />
+          <Route path="/datasets/:datasetId/versions/:versionId/tables" element={<TableAnalysis />} />  
 
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
 
