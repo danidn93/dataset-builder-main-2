@@ -424,7 +424,6 @@ export default function PublicFullDashboard() {
         </h1>
 
         <div className="mt-4 text-base sm:text-lg font-avenir">
-          <strong className="text-[#fc7e00]">Dataset:</strong> {data.datasetName} |
           <strong className="text-[#fc7e00] ml-3">Período:</strong> {data.periodo}
         </div>
 
