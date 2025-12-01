@@ -29,6 +29,8 @@ interface Data {
 function toTitle(str: string) {
   return str
     .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim()
     .split(" ")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
@@ -36,7 +38,6 @@ function toTitle(str: string) {
 
 export default function PublicFullDashboard() {
   const { token } = useParams();
-
   const [data, setData] = useState<Data | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -53,7 +54,7 @@ export default function PublicFullDashboard() {
   const charts = useRef<Record<string, Chart>>({});
 
   // ======================================
-  // CARGAR DATA — TOKEN
+  // CARGAR DATA
   // ======================================
   useEffect(() => {
     const load = async () => {
@@ -65,14 +66,15 @@ export default function PublicFullDashboard() {
             headers: {
               "Content-Type": "application/json",
               apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+              Authorization: `Bearer ${
+                import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+              }`,
             },
             body: JSON.stringify({ token }),
           }
         );
 
         const json = await res.json();
-
         if (!json.data) throw new Error("Token inválido");
 
         setData(json.data);
@@ -86,30 +88,31 @@ export default function PublicFullDashboard() {
     load();
   }, [token]);
 
-  // ======================================
+  // ======================================================
   // RENDER GRAFICOS
-  // ======================================
+  // ======================================================
   useEffect(() => {
     if (!data) return;
 
     Object.values(charts.current).forEach((c) => c?.destroy());
     charts.current = {};
 
-    // Plugins
-    const barLabels = {
-      id: "barLabels",
+    // ======================================================
+    // PLUGIN → LABELS EXTERNOS (2 DECIMALES) BARRAS
+    // ======================================================
+    const externalLabels = {
+      id: "externalLabels",
       afterDatasetsDraw(chart: Chart) {
         const ctx = chart.ctx;
         ctx.save();
         ctx.font = "bold 13px Segoe UI, Arial";
         ctx.fillStyle = "#fc7e00";
         ctx.textAlign = "center";
-        ctx.textBaseline = "bottom";
 
         chart.data.datasets.forEach((ds, i) => {
           chart.getDatasetMeta(i).data.forEach((bar: any, j: number) => {
-            const val = ds.data[j] as number;
-            ctx.fillText(val.toFixed(1) + "%", bar.x, bar.y - 6);
+            const val = Number(ds.data[j]);
+            ctx.fillText(val.toFixed(2) + "%", bar.x, bar.y - 8);
           });
         });
 
@@ -117,57 +120,62 @@ export default function PublicFullDashboard() {
       },
     };
 
-    const radarLabels = {
-      id: "radarLabels",
+    // ======================================================
+    // PLUGIN → RADAR SOLO 1 LABEL POR CRITERIO
+    // ======================================================
+    const radarValueLabels = {
+      id: "radarValueLabels",
       afterDatasetsDraw(chart: Chart) {
         const sc = chart.scales["r"];
         if (!sc) return;
 
         const ctx = chart.ctx;
         ctx.save();
-        ctx.font = "bold 10px Segoe UI, Arial";
+        ctx.font = "bold 11px Segoe UI, Arial";
         ctx.fillStyle = "#fc7e00";
         ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
 
         const ds = chart.data.datasets[0];
         const meta = chart.getDatasetMeta(0);
 
         meta.data.forEach((p: any, i: number) => {
-          const val = ds.data[i] as number;
+          const val = Number(ds.data[i]);
           const angle = sc.getIndexAngle(i) - Math.PI / 2;
-          const radius = sc.getDistanceFromCenterForValue(val) + 18;
+          const radius = sc.getDistanceFromCenterForValue(val) + 14;
 
           const x = sc.xCenter + Math.cos(angle) * radius;
           const y = sc.yCenter + Math.sin(angle) * radius;
 
-          ctx.fillText(val.toFixed(1) + "%", x, y);
+          ctx.fillText(val.toFixed(2) + "%", x, y);
         });
 
         ctx.restore();
       },
     };
 
-    Chart.register(barLabels, radarLabels);
+    Chart.register(externalLabels, radarValueLabels);
 
-    // Promedios globales
+    // ======================================================
+    // PROMEDIOS GLOBALES
+    // ======================================================
     const proms = data.criterios.map((_, i) => {
-      let sum = 0,
-        count = 0;
+      let sum = 0;
+      let count = 0;
 
       data.facultades.forEach((f) =>
         f.carreras.forEach((c) => {
-          if (typeof c.criterios[i] === "number") {
-            sum += c.criterios[i];
-            count++;
-          }
+          if (typeof c.criterios[i] !== "number") return;
+          sum += c.criterios[i];
+          count++;
         })
       );
 
       return count ? sum / count : 0;
     });
 
+    // ======================================================
     // FACULTADES
+    // ======================================================
     charts.current.facultades = new Chart(canvases.facultades.current!, {
       type: "bar",
       data: {
@@ -181,12 +189,14 @@ export default function PublicFullDashboard() {
         ],
       },
       options: {
-        plugins: { legend: { display: false }, barLabels: true },
+        plugins: { legend: { display: false }, externalLabels: true },
         scales: { y: { beginAtZero: true, max: 100 } },
       },
     });
 
+    // ======================================================
     // CRITERIOS GLOBAL
+    // ======================================================
     charts.current.global = new Chart(canvases.global.current!, {
       type: "bar",
       data: {
@@ -200,7 +210,7 @@ export default function PublicFullDashboard() {
         ],
       },
       options: {
-        plugins: { legend: { display: false }, barLabels: true },
+        plugins: { legend: { display: false }, externalLabels: true },
         scales: { y: { max: 100 } },
       },
     });
@@ -208,13 +218,16 @@ export default function PublicFullDashboard() {
     updateDetail();
   }, [data]);
 
+  // ======================================================
+  // DETALLE FACULTAD / CARRERA
+  // ======================================================
   const updateDetail = () => {
     if (!data) return;
 
     const fac = data.facultades[selectedFacIdx];
     const car = fac.carreras[selectedCarIdx];
 
-    // BARRAS
+    // BARRAS DETALLE
     if (charts.current.detalle) charts.current.detalle.destroy();
     charts.current.detalle = new Chart(canvases.detalle.current!, {
       type: "bar",
@@ -229,7 +242,7 @@ export default function PublicFullDashboard() {
         ],
       },
       options: {
-        plugins: { legend: { display: false }, barLabels: true },
+        plugins: { legend: { display: false }, externalLabels: true },
         scales: { y: { max: 100 } },
       },
     });
@@ -239,35 +252,45 @@ export default function PublicFullDashboard() {
     charts.current.radar = new Chart(canvases.radar.current!, {
       type: "radar",
       data: {
-        labels: data.criterios,
+        labels: data.criterios, // ← volver a mostrar criterios
         datasets: [
           {
             label: toTitle(car.nombre),
             data: car.criterios,
-            backgroundColor: "rgba(63,122,160,0.18)",
+            backgroundColor: "rgba(63,122,160,0.20)",
             borderColor: "#fc7e00",
             pointBackgroundColor: "#fc7e00",
           },
         ],
       },
       options: {
-        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        plugins: {
+          legend: { display: false },
+          tooltip: { enabled: false },
+        },
         scales: {
           r: {
             suggestedMin: 60,
             suggestedMax: 100,
-            pointLabels: { display: false }, // CORREGIDO
+            pointLabels: {
+              display: true,
+              font: { size: 10 },
+              color: "#1c3247",
+            },
           },
         },
+        layout: { padding: 20 },
+        responsive: true,
+        maintainAspectRatio: false,
       },
     });
   };
 
   useEffect(() => updateDetail(), [selectedFacIdx, selectedCarIdx]);
 
-  // ======================================
+  // ======================================================
   // RENDER
-  // ======================================
+  // ======================================================
   if (loading)
     return (
       <div className="text-white text-3xl text-center mt-24">
@@ -321,15 +344,11 @@ export default function PublicFullDashboard() {
         </div>
 
         {/* FACULTADES */}
-        <h2 className="text-[#1c3247] text-xl mt-10">
-          Resumen por Facultad
-        </h2>
+        <h2 className="text-[#1c3247] text-xl mt-10">Resumen por Facultad</h2>
         <canvas ref={canvases.facultades}></canvas>
 
         {/* CRITERIOS */}
-        <h2 className="text-[#1c3247] text-xl mt-10">
-          Porcentaje Global por Criterio
-        </h2>
+        <h2 className="text-[#1c3247] text-xl mt-10">Porcentaje Global por Criterio</h2>
         <canvas ref={canvases.global}></canvas>
 
         {/* DETALLE */}
@@ -351,7 +370,7 @@ export default function PublicFullDashboard() {
         </select>
 
         <h3 className="mt-4 text-xl font-semibold">
-          {toTitle(fac.nombre)} ({fac.total.toFixed(1)}%)
+          {toTitle(fac.nombre)} ({fac.total.toFixed(2)}%)
         </h3>
 
         {/* TABLA */}
@@ -378,7 +397,7 @@ export default function PublicFullDashboard() {
                     className="p-2 border-b text-center font-bold"
                     style={{ color }}
                   >
-                    {car.total.toFixed(1)}%
+                    {car.total.toFixed(2)}%
                   </td>
                 </tr>
               );
@@ -399,11 +418,14 @@ export default function PublicFullDashboard() {
           ))}
         </select>
 
-        {/* DETALLE GRAFICOS */}
+        {/* GRÁFICO DETALLE */}
         <canvas ref={canvases.detalle} className="mt-6"></canvas>
 
         <h3 className="text-[#1c3247] text-xl mt-10">Radar</h3>
-        <canvas ref={canvases.radar}></canvas>
+
+        <div style={{ width: "70%", margin: "0 auto", height: "350px" }}>
+          <canvas ref={canvases.radar}></canvas>
+        </div>
       </div>
     </div>
   );

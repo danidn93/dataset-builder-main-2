@@ -27,12 +27,12 @@ import {
 import { FileDown, Share2 } from "lucide-react";
 
 // IMÁGENES PDF
-import portadaImg from "@/assets/pdf/portada.png";
-import curvaImg from "@/assets/pdf/curva.png";
-import footerImg from "@/assets/pdf/footer.png";
+import portadaImg from "@/assets/pdf/portada.png?base64";
+import curvaImg from "@/assets/pdf/curva.png?base64";
+import footerImg from "@/assets/pdf/footer.png?base64";
 
 // FUNCIÓN PDF
-import { generateReportPDF } from "@/utils/generateReportPdf";
+import { generarReportePDF } from "@/lib/pdfGenerator";
 
 // ------------------------------------------------
 // Tipos
@@ -437,36 +437,39 @@ export default function Dashboard() {
                   const fac = data.facultades[pdfFacultadIdx];
                   const car = fac.carreras[pdfCarreraIdx];
 
-                  generateReportPDF({
-                    data: {
+                  // Construcción correcta del payload que tu generador de PDF sí acepta
+                  const criteriosData = data.criterios.map((c, idx) => ({
+                    nombre: c,
+                    valor: car.criterios[idx] ?? 0,
+                  }));
+
+                  generarReportePDF(
+                    {
                       facultad: toTitle(fac.nombre),
                       carrera: toTitle(car.nombre),
                       periodo: data.periodo,
-                      introduccion: `Informe correspondiente a la carrera ${toTitle(
-                        car.nombre
-                      )}, de la ${toTitle(
-                        fac.nombre
-                      )}, en el período ${data.periodo}.`,
-                      metodologia:
-                        "El análisis considera valores por criterio, carrera y facultad.",
-                      conclusiones:
-                        "Los resultados evidencian un desempeño positivo.",
-                      recomendaciones:
-                        "Atender los criterios con menor puntuación.",
+                      muestra: 0, // si no tienes muestra, pon 0
+                      criterios: data.criterios.map((c, idx) => ({
+                        nombre: c,
+                        valor: car.criterios[idx] ?? 0,
+                      })),
+                      promedioGeneral:
+                        car.criterios.reduce((acc, x) => acc + x, 0) /
+                        car.criterios.length,
+                      porcentajeSatisfaccion: car.total,
                     },
-                    portadaImg,
-                    curvaImg,
-                    footerImg,
-                    chartRefs: {
-                      global: canvases.globalCriterios.current,
-                      detalle: canvases.detalle.current,
-                      radar: canvases.radar.current,
-                    },
-                  });
+                    {
+                      portada: portadaImg,
+                      header: curvaImg,
+                      footer: footerImg,
+                    }
+                  );
+
                 }}
               >
                 <FileDown className="mr-2 h-4 w-4" /> Generar Reporte
               </Button>
+
             </div>
           </DialogContent>
         </Dialog>
