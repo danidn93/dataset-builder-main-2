@@ -26,6 +26,9 @@ interface Data {
   datasetName: string;
 }
 
+// -----------------------------
+// Title Case
+// -----------------------------
 function toTitle(str: string) {
   return str
     .toLowerCase()
@@ -34,6 +37,29 @@ function toTitle(str: string) {
     .split(" ")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
+}
+
+// -----------------------------
+// MULTILÍNEA PARA RADAR
+// -----------------------------
+function wrapLabel(text: string, maxCharsPerLine = 20): string | string[] {
+  const words = text.split(" ");
+  const lines: string[] = [];
+  let currentLine = "";
+
+  for (const word of words) {
+    const testLine = currentLine ? `${currentLine} ${word}` : word;
+    if (testLine.length > maxCharsPerLine) {
+      if (currentLine) lines.push(currentLine);
+      currentLine = word;
+    } else {
+      currentLine = testLine;
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+
+  // Si es una sola línea corta, devolver string; si no, array (Chart.js lo soporta)
+  return lines.length === 1 ? lines[0] : lines;
 }
 
 export default function PublicFullDashboard() {
@@ -66,9 +92,7 @@ export default function PublicFullDashboard() {
             headers: {
               "Content-Type": "application/json",
               apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-              Authorization: `Bearer ${
-                import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
-              }`,
+              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
             },
             body: JSON.stringify({ token }),
           }
@@ -98,7 +122,7 @@ export default function PublicFullDashboard() {
     charts.current = {};
 
     // ======================================================
-    // PLUGIN → LABELS EXTERNOS (2 DECIMALES) BARRAS
+    // PLUGIN → LABELS EXTERNOS (2 DECIMALES)
     // ======================================================
     const externalLabels = {
       id: "externalLabels",
@@ -109,11 +133,12 @@ export default function PublicFullDashboard() {
         ctx.fillStyle = "#fc7e00";
         ctx.textAlign = "center";
 
-        chart.data.datasets.forEach((ds, i) => {
-          chart.getDatasetMeta(i).data.forEach((bar: any, j: number) => {
-            const val = Number(ds.data[j]);
-            ctx.fillText(val.toFixed(2) + "%", bar.x, bar.y - 8);
-          });
+        chart.data.datasets[0].data.forEach((v: any, i: number) => {
+          const meta = chart.getDatasetMeta(0);
+          const bar = meta.data[i];
+          if (!bar) return;
+
+          ctx.fillText(Number(v).toFixed(2) + "%", bar.x, bar.y - 8);
         });
 
         ctx.restore();
@@ -121,56 +146,59 @@ export default function PublicFullDashboard() {
     };
 
     // ======================================================
-    // PLUGIN → RADAR SOLO 1 LABEL POR CRITERIO
+    // PLUGIN → RADAR SOLO 1 LABEL DE VALOR
     // ======================================================
     const radarValueLabels = {
-      id: "radarValueLabels",
-      afterDatasetsDraw(chart: Chart) {
-        const sc = chart.scales["r"];
-        if (!sc) return;
+        id: "radarValueLabels",
+        afterDatasetsDraw(chart: Chart) {
+            const sc = chart.scales["r"];
+            if (!sc) return;
 
-        const ctx = chart.ctx;
-        ctx.save();
-        ctx.font = "bold 11px Segoe UI, Arial";
-        ctx.fillStyle = "#fc7e00";
-        ctx.textAlign = "center";
+            const ctx = chart.ctx;
+            ctx.save();
+            ctx.font = "bold 12px Segoe UI, Arial";
+            ctx.fillStyle = "#fc7e00";
+            ctx.textAlign = "center";
 
-        const ds = chart.data.datasets[0];
-        const meta = chart.getDatasetMeta(0);
+            const ds = chart.data.datasets[0];
+            const meta = chart.getDatasetMeta(0);
 
-        meta.data.forEach((p: any, i: number) => {
-          const val = Number(ds.data[i]);
-          const angle = sc.getIndexAngle(i) - Math.PI / 2;
-          const radius = sc.getDistanceFromCenterForValue(val) + 14;
+            meta.data.forEach((p: any, i: number) => {
+            const val = Number(ds.data[i]);
 
-          const x = sc.xCenter + Math.cos(angle) * radius;
-          const y = sc.yCenter + Math.sin(angle) * radius;
+            const angle = sc.getIndexAngle(i) - Math.PI / 2;
+            const radius = sc.getDistanceFromCenterForValue(val) + 20; // separo del punto
 
-          ctx.fillText(val.toFixed(2) + "%", x, y);
-        });
+            const x = sc.xCenter + Math.cos(angle) * radius;
+            const y = sc.yCenter + Math.sin(angle) * radius;
 
-        ctx.restore();
-      },
+            ctx.fillText(val.toFixed(2) + "%", x, y);
+            });
+
+            ctx.restore();
+        },
     };
 
     Chart.register(externalLabels, radarValueLabels);
 
     // ======================================================
-    // PROMEDIOS GLOBALES
+    // CRITERIOS (PROMEDIOS GLOBALES)
     // ======================================================
-    const proms = data.criterios.map((_, i) => {
+    const proms = data.criterios.map((_, idx) => {
       let sum = 0;
-      let count = 0;
+      let c = 0;
 
       data.facultades.forEach((f) =>
-        f.carreras.forEach((c) => {
-          if (typeof c.criterios[i] !== "number") return;
-          sum += c.criterios[i];
-          count++;
+        f.carreras.forEach((car) => {
+          const v = car.criterios[idx];
+          if (typeof v === "number") {
+            sum += v;
+            c++;
+          }
         })
       );
 
-      return count ? sum / count : 0;
+      return c ? sum / c : 0;
     });
 
     // ======================================================
@@ -185,11 +213,16 @@ export default function PublicFullDashboard() {
             data: data.facultades.map((f) => f.total),
             backgroundColor: ["#1c3247", "#fc7e00", "#f48521", "#4597bf"],
             borderRadius: 7,
+            datalabels: { display: false },
           },
         ],
       },
       options: {
-        plugins: { legend: { display: false }, externalLabels: true },
+        plugins: {
+          legend: { display: false },
+          externalLabels: true,
+          tooltip: { enabled: false },
+        },
         scales: { y: { beginAtZero: true, max: 100 } },
       },
     });
@@ -206,11 +239,16 @@ export default function PublicFullDashboard() {
             data: proms,
             backgroundColor: "#fc7e00",
             borderRadius: 6,
+            datalabels: { display: false },
           },
         ],
       },
       options: {
-        plugins: { legend: { display: false }, externalLabels: true },
+        plugins: {
+          legend: { display: false },
+          externalLabels: true,
+          tooltip: { enabled: false },
+        },
         scales: { y: { max: 100 } },
       },
     });
@@ -237,53 +275,108 @@ export default function PublicFullDashboard() {
           {
             data: car.criterios,
             backgroundColor: "#fc7e00",
-            borderRadius: 6,
-          },
-        ],
-      },
-      options: {
-        plugins: { legend: { display: false }, externalLabels: true },
-        scales: { y: { max: 100 } },
-      },
-    });
-
-    // RADAR
-    if (charts.current.radar) charts.current.radar.destroy();
-    charts.current.radar = new Chart(canvases.radar.current!, {
-      type: "radar",
-      data: {
-        labels: data.criterios, // ← volver a mostrar criterios
-        datasets: [
-          {
-            label: toTitle(car.nombre),
-            data: car.criterios,
-            backgroundColor: "rgba(63,122,160,0.20)",
-            borderColor: "#fc7e00",
-            pointBackgroundColor: "#fc7e00",
+            borderRadius: 7,
+            datalabels: { display: false },
           },
         ],
       },
       options: {
         plugins: {
           legend: { display: false },
+          externalLabels: true,
           tooltip: { enabled: false },
         },
-        scales: {
-          r: {
-            suggestedMin: 60,
-            suggestedMax: 100,
-            pointLabels: {
-              display: true,
-              font: { size: 10 },
-              color: "#1c3247",
-            },
-          },
-        },
-        layout: { padding: 20 },
-        responsive: true,
-        maintainAspectRatio: false,
+        scales: { y: { max: 100 } },
       },
     });
+
+    // RADAR
+    if (charts.current.radar) charts.current.radar.destroy();    
+        charts.current.radar = new Chart(canvases.radar.current, {
+    type: "radar",
+    data: {
+      labels: data.criterios.map((c: string) => wrapLabel(c, 22)),
+      datasets: [
+        {
+          label: toTitle(car.nombre),
+          data: car.criterios,
+          backgroundColor: "rgba(252, 126, 0, 0.15)",
+          borderColor: "#fc7e00",
+          borderWidth: 3,
+          pointBackgroundColor: "#fc7e00",
+          pointBorderColor: "#fff",
+          pointBorderWidth: 2,
+          pointRadius: 5,
+          pointHoverRadius: 8,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: {
+        padding: {
+          top: 90,
+          bottom: 90,
+          left: 90,
+          right: 90,
+        },
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: { enabled: true },
+      },
+      scales: {
+        r: {
+          min: 60,
+          max: 100,
+          ticks: { display: false },
+          pointLabels: {
+            font: { size: 13, weight: "600" as const },
+            color: "#1c3247",
+            padding: 25,
+          },
+          grid: { color: "#e2e8f0" },
+          angleLines: { color: "#e2e8f0" },
+        },
+      },
+    },
+    plugins: [
+      {
+        id: "radarSinglePercentage",
+        afterDatasetsDraw(chart) {
+          const { ctx, scales: { r } } = chart;
+          const values = chart.data.datasets[0].data as number[];
+
+          ctx.save();
+          ctx.font = "bold 15px Segoe UI";
+          ctx.fillStyle = "#fc7e00";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+
+          values.forEach((value, i) => {
+            const angle = r.getIndexAngle(i) - Math.PI / 2;
+            const distance = r.getDistanceFromCenterForValue(value);
+            const radius = distance + 45; // separación perfecta
+
+            const x = r.xCenter + Math.cos(angle) * radius;
+            let y = r.yCenter + Math.sin(angle) * radius;
+
+            // Ajuste extra si el label del criterio tiene más de una línea
+            const label = chart.data.labels[i];
+            const lines = Array.isArray(label) ? label.length : 1;
+            if (lines > 1) {
+              y += (Math.sign(Math.sin(angle)) || 1) * 15 * lines;
+            }
+
+            ctx.fillText(`${value.toFixed(1)}%`, x, y);
+          });
+
+          ctx.restore();
+        },
+      },
+    ],
+  });
   };
 
   useEffect(() => updateDetail(), [selectedFacIdx, selectedCarIdx]);
@@ -306,6 +399,15 @@ export default function PublicFullDashboard() {
     );
 
   const fac = data.facultades[selectedFacIdx];
+
+  // ========================================
+  // TABLA RESUMEN FACULTADES
+  // ========================================
+  const resumenFacultades = data.facultades.map((f) => {
+    const best = [...f.carreras].sort((a, b) => b.total - a.total)[0];
+    const worst = [...f.carreras].sort((a, b) => a.total - b.total)[0];
+    return { ...f, best, worst };
+  });
 
   return (
     <div
@@ -343,16 +445,52 @@ export default function PublicFullDashboard() {
           </div>
         </div>
 
-        {/* FACULTADES */}
+        {/* FACULTADES CHART */}
         <h2 className="text-[#1c3247] text-xl mt-10">Resumen por Facultad</h2>
         <canvas ref={canvases.facultades}></canvas>
 
-        {/* CRITERIOS */}
-        <h2 className="text-[#1c3247] text-xl mt-10">Porcentaje Global por Criterio</h2>
+        {/* TABLA RESUMEN */}
+        <h2 className="text-[#1c3247] text-xl mt-10">
+          Mejores y Peores Carreras por Facultad
+        </h2>
+
+        <table className="w-full mt-4 border-collapse">
+          <thead className="bg-[#1c3247] text-white">
+            <tr>
+              <th className="p-3 text-left">Facultad</th>
+              <th className="p-3 text-center">Global</th>
+              <th className="p-3 text-left">Mejor Carrera</th>
+              <th className="p-3 text-left">Peor Carrera</th>
+            </tr>
+          </thead>
+          <tbody>
+            {resumenFacultades.map((f, i) => (
+              <tr key={i} className="border-b">
+                <td className="p-3 font-semibold">{toTitle(f.nombre)}</td>
+                <td className="p-3 text-center font-bold text-[#fc7e00]">
+                  {f.total.toFixed(2)}%
+                </td>
+                <td className="p-3">
+                  {toTitle(f.best.nombre)} ({f.best.total.toFixed(2)}%)
+                </td>
+                <td className="p-3">
+                  {toTitle(f.worst.nombre)} ({f.worst.total.toFixed(2)}%)
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* CRITERIOS GLOBAL */}
+        <h2 className="text-[#1c3247] text-xl mt-10">
+          Porcentaje Global por Criterio
+        </h2>
         <canvas ref={canvases.global}></canvas>
 
-        {/* DETALLE */}
-        <h2 className="text-[#1c3247] text-xl mt-10">Detalle por Facultad</h2>
+        {/* DETALLE FACULTAD */}
+        <h2 className="text-[#1c3247] text-xl mt-10">
+          Detalle por Facultad
+        </h2>
 
         <select
           className="border-2 border-[#3c7aa0] rounded-md p-2 mt-3"
@@ -373,7 +511,7 @@ export default function PublicFullDashboard() {
           {toTitle(fac.nombre)} ({fac.total.toFixed(2)}%)
         </h3>
 
-        {/* TABLA */}
+        {/* TABLA CARRERAS */}
         <table className="w-full mt-4 border-collapse">
           <thead className="bg-[#1c3247] text-white">
             <tr>
@@ -382,26 +520,14 @@ export default function PublicFullDashboard() {
             </tr>
           </thead>
           <tbody>
-            {fac.carreras.map((car, i) => {
-              const color =
-                car.total < 75
-                  ? "#c0392b"
-                  : car.total < 80
-                  ? "#f39c12"
-                  : "#27ae60";
-
-              return (
-                <tr key={i}>
-                  <td className="p-2 border-b">{toTitle(car.nombre)}</td>
-                  <td
-                    className="p-2 border-b text-center font-bold"
-                    style={{ color }}
-                  >
-                    {car.total.toFixed(2)}%
-                  </td>
-                </tr>
-              );
-            })}
+            {fac.carreras.map((car, i) => (
+              <tr key={i} className="border-b">
+                <td className="p-2">{toTitle(car.nombre)}</td>
+                <td className="p-2 text-center font-bold text-[#fc7e00]">
+                  {car.total.toFixed(2)}%
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
 
@@ -411,21 +537,22 @@ export default function PublicFullDashboard() {
           value={selectedCarIdx}
           onChange={(e) => setSelectedCarIdx(+e.target.value)}
         >
-          {fac.carreras.map((car, idx) => (
-            <option key={idx} value={idx}>
-              {toTitle(car.nombre)}
+          {fac.carreras.map((c, i) => (
+            <option key={i} value={i}>
+              {toTitle(c.nombre)}
             </option>
           ))}
         </select>
 
-        {/* GRÁFICO DETALLE */}
+        {/* BARRAS DETALLE */}
         <canvas ref={canvases.detalle} className="mt-6"></canvas>
 
+        {/* RADAR 
         <h3 className="text-[#1c3247] text-xl mt-10">Radar</h3>
 
-        <div style={{ width: "70%", margin: "0 auto", height: "350px" }}>
+        <div style={{ width: "100%", height: "550px", margin: "0 auto" }}>
           <canvas ref={canvases.radar}></canvas>
-        </div>
+        </div>*/}
       </div>
     </div>
   );
