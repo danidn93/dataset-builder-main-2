@@ -72,6 +72,50 @@ const COLORES = {
   grisClaro: [245, 245, 245] as [number, number, number],
 };
 
+// =======================================================
+// FUNCIÓN PARA AGREGAR TEXTO JUSTIFICADO EN JSPDDF
+// =======================================================
+const drawJustifiedText = (
+  pdf: jsPDF,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  lineHeight: number = 5
+) => {
+  // cortar líneas normalmente
+  const lines = pdf.splitTextToSize(text, maxWidth) as string[];
+
+  lines.forEach((line, index) => {
+    const isLastLine = index === lines.length - 1;
+
+    if (isLastLine) {
+      // última línea: izquierda normal
+      pdf.text(line, x, y);
+    } else {
+      const words = line.split(" ");
+      if (words.length === 1) {
+        pdf.text(line, x, y);
+      } else {
+        const lineWithoutSpaces = words.join("");
+        const textWidth = pdf.getTextWidth(lineWithoutSpaces);
+        const totalSpaces = words.length - 1;
+        const extraSpace = (maxWidth - textWidth) / totalSpaces;
+
+        let cursorX = x;
+        words.forEach((word, idx) => {
+          pdf.text(word, cursorX, y);
+          cursorX += pdf.getTextWidth(word) + extraSpace;
+        });
+      }
+    }
+
+    y += lineHeight;
+  });
+
+  return y;
+};
+
 export const generarReportePDF = async (
   data: ReporteData,
   images: ReporteImages
@@ -204,14 +248,12 @@ export const generarReportePDF = async (
 
   const introText = `En el marco del fortalecimiento de la calidad académica y de los servicios institucionales, la Dirección de Aseguramiento de la Calidad aplicó la Encuesta de Satisfacción Estudiantil correspondiente al ${data.periodo} a la carrera de ${data.carrera} con el propósito de evaluar el nivel de satisfacción de los estudiantes y establecer acciones de mejora.`;
   
-  const introLines = pdf.splitTextToSize(introText, pageWidth - 2 * margin);
-  pdf.text(introLines, margin, y);
-  y += introLines.length * 5 + 5;
+  y = drawJustifiedText(pdf, introText, margin, y, pageWidth - 2 * margin);
+  y += 5;
 
   const introText2 = "Este proceso permite identificar fortalezas y oportunidades, facilitando la toma de decisiones estratégicas. Los resultados obtenidos servirán como insumo para la planificación académica y la optimización de los recursos institucionales.";
-  const introLines2 = pdf.splitTextToSize(introText2, pageWidth - 2 * margin);
-  pdf.text(introLines2, margin, y);
-  y += introLines2.length * 5 + 10;
+  y = drawJustifiedText(pdf, introText2, margin, y, pageWidth - 2 * margin);
+  y += 10;
 
   // 2. Metodología
   pdf.setFont("helvetica", "bold");
@@ -234,8 +276,8 @@ export const generarReportePDF = async (
 
   metodologiaItems.forEach((item) => {
     const lines = pdf.splitTextToSize(item, pageWidth - 2 * margin);
-    pdf.text(lines, margin, y);
-    y += lines.length * 5 + 3;
+    y = drawJustifiedText(pdf, item, margin, y, pageWidth - 2 * margin);
+    y += 3;
   });
 
   y += 3;
@@ -271,9 +313,8 @@ export const generarReportePDF = async (
   pdf.setTextColor(0, 0, 0);
   
   const resultadosText = "A continuación, se presentan los resultados obtenidos en cada uno de los criterios evaluados en la encuesta de satisfacción estudiantil. Estos reflejan la percepción de los estudiantes sobre diversos aspectos que inciden en su experiencia académica y formativa.";
-  const resultadosLines = pdf.splitTextToSize(resultadosText, pageWidth - 2 * margin);
-  pdf.text(resultadosLines, margin, y);
-  y += resultadosLines.length * 5 + 8;
+  y = drawJustifiedText(pdf, resultadosText, margin, y, pageWidth - 2 * margin);
+  y += 8;
 
   // Tabla de resultados con barras visuales
   const maxBarWidth = 80; // Ancho de la barra
@@ -349,12 +390,12 @@ export const generarReportePDF = async (
   
   const satisfaccionText = `El promedio general de satisfacción obtenido por la carrera de ${data.carrera} fue de ${data.promedioGeneral.toFixed(2)} puntos sobre 5, equivalente a un ${data.porcentajeSatisfaccion.toFixed(1)}% de satisfacción global.`;
   const satisfaccionLines = pdf.splitTextToSize(satisfaccionText, pageWidth - 2 * margin);
-  pdf.text(satisfaccionLines, margin, y);
+  y = drawJustifiedText(pdf, satisfaccionText, margin, y, pageWidth - 2 * margin);
   y += satisfaccionLines.length * 5 + 5;
 
   const fortalezasText = "Las fortalezas más destacadas se identifican según los promedios más altos de las áreas evaluadas, mientras que las oportunidades de mejora corresponden a los aspectos con puntuaciones más bajas.";
   const fortalezasLines = pdf.splitTextToSize(fortalezasText, pageWidth - 2 * margin);
-  pdf.text(fortalezasLines, margin, y);
+  y = drawJustifiedText(pdf, fortalezasText, margin, y, pageWidth - 2 * margin);
 
   // Footer de página 4
   safeAddImage(images.footer, 0, pageHeight - 7.9, 210.1, 7.9);
@@ -389,8 +430,8 @@ export const generarReportePDF = async (
 
   conclusionesTexts.forEach((texto) => {
     const lines = pdf.splitTextToSize(texto, pageWidth - 2 * margin);
-    pdf.text(lines, margin, y);
-    y += lines.length * 5 + 5;
+    y = drawJustifiedText(pdf, texto, margin, y, pageWidth - 2 * margin);
+    y += 5;
   });
 
   y += 10;
@@ -421,8 +462,8 @@ export const generarReportePDF = async (
 
   recomendaciones.forEach((rec, idx) => {
     const lines = pdf.splitTextToSize(`${idx + 1}. ${rec}`, pageWidth - 2 * margin - 5);
-    pdf.text(lines, margin + 5, y);
-    y += lines.length * 5 + 5;
+    y = drawJustifiedText(pdf, `${idx + 1}. ${rec}`, margin + 5, y, pageWidth - 2 * margin - 5);
+    y += 5;
   });
 
   y += 15;

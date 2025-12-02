@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { Eye, EyeOff } from "lucide-react";
 import unemiBg from "@/assets/unemi-bg.jpg";
 
 const Login = () => {
@@ -13,6 +14,7 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false); // 👈 NUEVO
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -105,8 +107,13 @@ const Login = () => {
               <TabsTrigger value="signup">Registrarse</TabsTrigger>
             </TabsList>
             
+            {/* ======================================= */}
+            {/* LOGIN */}
+            {/* ======================================= */}
             <TabsContent value="login">
               <form onSubmit={handleLogin} className="space-y-4">
+                
+                {/* EMAIL */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Correo Electrónico</label>
                   <Input
@@ -118,25 +125,43 @@ const Login = () => {
                     disabled={loading}
                   />
                 </div>
-                <div className="space-y-2">
+
+                {/* PASSWORD */}
+                <div className="space-y-2 relative">
                   <label className="text-sm font-medium">Contraseña</label>
+
                   <Input
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     disabled={loading}
                   />
+
+                  {/* 👁️ BOTÓN MOSTRAR/OCULTAR */}
+                  <button
+                    type="button"
+                    className="absolute right-3 top-9 text-gray-500 hover:text-gray-700"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
                 </div>
+
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Ingresando..." : "Iniciar Sesión"}
                 </Button>
               </form>
             </TabsContent>
             
+            {/* ======================================= */}
+            {/* SIGNUP */}
+            {/* ======================================= */}
             <TabsContent value="signup">
               <form onSubmit={handleSignup} className="space-y-4">
+                
+                {/* FULL NAME */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Nombre Completo</label>
                   <Input
@@ -148,6 +173,8 @@ const Login = () => {
                     disabled={loading}
                   />
                 </div>
+
+                {/* EMAIL */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Correo Electrónico</label>
                   <Input
@@ -159,10 +186,13 @@ const Login = () => {
                     disabled={loading}
                   />
                 </div>
-                <div className="space-y-2">
+
+                {/* PASSWORD */}
+                <div className="space-y-2 relative">
                   <label className="text-sm font-medium">Contraseña</label>
+
                   <Input
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -170,7 +200,17 @@ const Login = () => {
                     disabled={loading}
                     minLength={6}
                   />
+
+                  {/* 👁️ BOTÓN MOSTRAR/OCULTAR */}
+                  <button
+                    type="button"
+                    className="absolute right-3 top-9 text-gray-500 hover:text-gray-700"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
                 </div>
+
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Registrando..." : "Crear Cuenta"}
                 </Button>

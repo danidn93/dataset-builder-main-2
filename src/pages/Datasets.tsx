@@ -37,7 +37,6 @@ const Datasets = () => {
       const { data: datasetsData, error: datasetsError } = await supabase
         .from("datasets")
         .select("*")
-        .eq("user_id", user.id)
         .order("updated_at", { ascending: false });
 
       if (datasetsError) throw datasetsError;
