@@ -356,27 +356,8 @@ export const generarReportePDF = async (
   const escalaY = y;
   const escalaStartX = pageWidth - margin - maxBarWidth;
   
-  // Línea de escala
-  pdf.setDrawColor(...COLORES.gris);
-  pdf.line(escalaStartX, escalaY, escalaStartX + maxBarWidth, escalaY);
-  
-  // Marcas de escala (0, 25, 50, 75, 100)
-  for (let i = 0; i <= 4; i++) {
-    const x = escalaStartX + (i / 4) * maxBarWidth;
-    const valor = i * 25;
-    pdf.line(x, escalaY - 1, x, escalaY + 1);
-    pdf.text(valor.toString(), x - 2, escalaY + 5);
-  }
-  
-  y += 10;
-  pdf.text("Escala del (0-100)", escalaStartX, y);
-  y += 5;
-  pdf.setFontSize(8);
-  const leyendaText = "[20: Nada satisfecho, 40: Poco satisfecho, 60: Neutral, 80: Satisfecho, 100: Totalmente satisfecho]";
-  const leyendaLines = pdf.splitTextToSize(leyendaText, maxBarWidth + 20);
-  pdf.text(leyendaLines, escalaStartX, y);
-  y += leyendaLines.length * 4 + 8;
 
+  
   // Porcentaje General de Satisfacción
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(14);
