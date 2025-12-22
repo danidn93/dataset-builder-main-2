@@ -642,11 +642,7 @@ export default function PublicFullDashboard() {
                 <th className="p-2 sm:p-3 text-center text-sm sm:text-base font-aventura">
                   Total Global
                 </th>
-
-                <th className="p-2 sm:p-3 text-center text-sm sm:text-base font-aventura">
-                  Encuestados
-                </th>
-
+                
                 <th className="p-2 sm:p-3 text-left text-sm sm:text-base font-aventura">
                   Carrera Mejor Puntuada
                 </th>
@@ -677,11 +673,7 @@ export default function PublicFullDashboard() {
                       >
                         {facItem.total.toFixed(2)}%
                       </span>
-                    </td>
-
-                    <td className="p-2 sm:p-3 text-center font-bold font-avenir">
-                      {eFac}
-                    </td>
+                    </td>                    
 
                     <td className="p-2 sm:p-3">
                       {toTitle(mejor.nombre)} ({mejor.total.toFixed(2)}%)
