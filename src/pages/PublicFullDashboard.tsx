@@ -38,10 +38,13 @@ interface Data {
   periodo: string;
   votos_por_numero?: any;
 
-  // ✅ NUEVO (viene desde edge function)
+  // ✅ viene desde edge function
   dedicaciones?: string[];
 }
 
+/* ======================================================
+   HELPERS: TITLES / WRAP
+====================================================== */
 function toTitle(str: string) {
   return str
     .toLowerCase()
@@ -67,6 +70,63 @@ function wrapLabel(text: string, maxWidth: number): string[] {
   return lines;
 }
 
+/* ======================================================
+   ✅ HELPERS: VOTOS (n)
+   - n = suma de {1..5} (respuestas), no personas únicas
+====================================================== */
+type Conteo15 = Record<number | string, number>;
+
+function sumConteo15(obj?: Conteo15 | null): number {
+  if (!obj) return 0;
+  return (obj[1] ?? 0) + (obj[2] ?? 0) + (obj[3] ?? 0) + (obj[4] ?? 0) + (obj[5] ?? 0);
+}
+
+// n global (sumando todas las facultades y todos los criterios)
+function votosGlobalTotal(vpn: any, facultades: { nombre: string }[], criterios: string[]): number {
+  const cf = vpn?.criterio_facultad;
+  if (!cf) return 0;
+
+  let n = 0;
+  for (const criterio of criterios) {
+    const mapFac = cf?.[criterio];
+    if (!mapFac) continue;
+    for (const f of facultades) {
+      n += sumConteo15(mapFac?.[f.nombre]);
+    }
+  }
+  return n;
+}
+
+// n total por Facultad (sumando todos los criterios)
+function votosFacultadTotal(vpn: any, facultad: string, criterios: string[]): number {
+  const cf = vpn?.criterio_facultad;
+  if (!cf) return 0;
+
+  let n = 0;
+  for (const criterio of criterios) {
+    n += sumConteo15(cf?.[criterio]?.[facultad]);
+  }
+  return n;
+}
+
+// n para un criterio global (sumando facultades)
+function votosCriterioGlobal(vpn: any, criterio: string, facultades: { nombre: string }[]): number {
+  const cf = vpn?.criterio_facultad?.[criterio];
+  if (!cf) return 0;
+
+  let n = 0;
+  for (const f of facultades) {
+    n += sumConteo15(cf?.[f.nombre]);
+  }
+  return n;
+}
+
+// n por criterio dentro de una Facultad
+function votosCriterioEnFacultad(vpn: any, criterio: string, facultad: string): number {
+  const cf = vpn?.criterio_facultad?.[criterio]?.[facultad];
+  return sumConteo15(cf);
+}
+
 export default function PublicFullDashboard() {
   const { token } = useParams();
 
@@ -75,7 +135,7 @@ export default function PublicFullDashboard() {
   const [selectedFacIdx, setSelectedFacIdx] = useState(0);
   const [selectedCarIdx, setSelectedCarIdx] = useState(0);
 
-  // ✅ NUEVO: filtro por DEDICACION
+  // ✅ filtro por DEDICACION
   const [dedicaciones, setDedicaciones] = useState<string[]>([]);
   const [dedicacionSeleccionada, setDedicacionSeleccionada] = useState<string>("ALL");
 
@@ -94,7 +154,7 @@ export default function PublicFullDashboard() {
     document.head.appendChild(style);
   }, []);
 
-  // ✅ MODIFICADO: cargar (y recargar) cuando cambie la dedicación
+  // ✅ cargar (y recargar) cuando cambie la dedicación
   useEffect(() => {
     const cargar = async () => {
       try {
@@ -121,14 +181,14 @@ export default function PublicFullDashboard() {
 
         const payload: Data = json.data;
 
-        // ✅ set dedicaciones (si viene vacío, el filtro desaparece)
+        // set dedicaciones (si viene vacío, el filtro desaparece)
         const ded = Array.isArray(payload.dedicaciones) ? payload.dedicaciones : [];
         setDedicaciones(ded);
         if (ded.length === 0) setDedicacionSeleccionada("ALL");
 
         setData(payload);
 
-        // ✅ reiniciar índices al recargar (evita índices inválidos tras filtrar)
+        // reiniciar índices al recargar
         setSelectedFacIdx(0);
         setSelectedCarIdx(0);
       } catch (e) {
@@ -153,6 +213,7 @@ export default function PublicFullDashboard() {
     const isMobile = window.innerWidth < 768;
 
     // Plugin: Etiquetas arriba en naranja (SOLO BARRAS)
+    // ✅ Ajuste: permite mostrar "(n=...)" en el chart de criterios globales.
     const barLabelsTop = {
       id: "barLabelsTop",
       afterDatasetsDraw(chart: Chart) {
@@ -164,11 +225,21 @@ export default function PublicFullDashboard() {
         ctx.fillStyle = "#fc7e00";
         ctx.textAlign = "center";
 
+        const chartId = (chart.canvas as any)?.id || "";
+
         chart.data.datasets.forEach((ds, i) => {
           chart.getDatasetMeta(i).data.forEach((bar: any, j: number) => {
             const val = ds.data[j] as number;
             const yOffset = isMobile ? -5 : -10;
-            ctx.fillText(val.toFixed(2) + "%", bar.x, bar.y + yOffset);
+
+            // ✅ Si es el gráfico de "Porcentaje Global por Criterio", añadimos n
+            if (chartId === "global-criterios-canvas" && data?.votos_por_numero) {
+              const criterioName = data.criterios[j];
+              const n = votosCriterioGlobal(data.votos_por_numero, criterioName, data.facultades);
+              ctx.fillText(`${val.toFixed(2)}% (n=${n})`, bar.x, bar.y + yOffset);
+            } else {
+              ctx.fillText(val.toFixed(2) + "%", bar.x, bar.y + yOffset);
+            }
           });
         });
 
@@ -249,7 +320,19 @@ export default function PublicFullDashboard() {
         maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
-          tooltip: { enabled: true, callbacks: multilineTooltipCallbacks },
+          tooltip: {
+            enabled: true,
+            callbacks: {
+              ...multilineTooltipCallbacks,
+              // ✅ Mostrar n en tooltip
+              afterLabel: (ctx: any) => {
+                const criterioIndex = ctx.dataIndex;
+                const criterioName = data.criterios[criterioIndex];
+                const n = votosCriterioGlobal(data.votos_por_numero, criterioName, data.facultades);
+                return `n=${n}`;
+              },
+            },
+          },
         } as any,
         scales: {
           x: {
@@ -385,6 +468,8 @@ export default function PublicFullDashboard() {
 
   const fac = data.facultades[selectedFacIdx];
 
+  const nGlobal = votosGlobalTotal(data.votos_por_numero, data.facultades, data.criterios);
+
   return (
     <div className="min-h-screen font-avenir">
       <div
@@ -405,7 +490,7 @@ export default function PublicFullDashboard() {
           <strong className="text-[#fc7e00] ml-3">Período:</strong> {data.periodo}
         </div>
 
-        {/* ✅ NUEVO: Filtro DEDICACION (solo si existe) */}
+        {/* ✅ Filtro DEDICACION (solo si existe) */}
         {dedicaciones.length > 0 && (
           <div className="mt-4 max-w-sm">
             <label className="block text-sm font-semibold font-avenir text-[#1c3247] mb-1">
@@ -431,12 +516,17 @@ export default function PublicFullDashboard() {
           </div>
         )}
 
+        {/* ✅ Porcentaje global + n */}
         <div className="flex flex-col sm:flex-row items-center gap-4 mt-6">
           <span className="text-lg sm:text-xl font-bold text-[#1c3247] font-aventura">
             Porcentaje Global:
           </span>
-          <div className="bg-[#fc7e00] text-white text-3xl sm:text-4xl font-bold px-8 sm:px-10 py-3 sm:py-4 rounded-xl font-aventura">
+
+          <div className="bg-[#fc7e00] text-white text-3xl sm:text-4xl font-bold px-8 sm:px-10 py-3 sm:py-4 rounded-xl font-aventura text-center">
             {data.global.toFixed(2)}%
+            <div className="text-sm font-avenir font-normal opacity-90 mt-1">
+              n={nGlobal}
+            </div>
           </div>
         </div>
 
@@ -461,6 +551,12 @@ export default function PublicFullDashboard() {
                 <th className="p-2 sm:p-3 text-center text-sm sm:text-base font-aventura">
                   Total Global
                 </th>
+
+                {/* ✅ NUEVO */}
+                <th className="p-2 sm:p-3 text-center text-sm sm:text-base font-aventura">
+                  Votos (n)
+                </th>
+
                 <th className="p-2 sm:p-3 text-left text-sm sm:text-base font-aventura">
                   Carrera Mejor Puntuada
                 </th>
@@ -470,24 +566,33 @@ export default function PublicFullDashboard() {
               </tr>
             </thead>
             <tbody className="font-avenir text-sm sm:text-base">
-              {data.facultades.map((fac, idx) => {
-                const carrerasOrdenadas = [...fac.carreras].sort((a, b) => b.total - a.total);
+              {data.facultades.map((facItem, idx) => {
+                const carrerasOrdenadas = [...facItem.carreras].sort((a, b) => b.total - a.total);
                 const mejor = carrerasOrdenadas[0];
                 const peor = carrerasOrdenadas[carrerasOrdenadas.length - 1];
 
+                const nFac = votosFacultadTotal(data.votos_por_numero, facItem.nombre, data.criterios);
+
                 return (
                   <tr key={idx} className="border-b hover:bg-gray-50">
-                    <td className="p-2 sm:p-3 font-semibold">{toTitle(fac.nombre)}</td>
+                    <td className="p-2 sm:p-3 font-semibold">{toTitle(facItem.nombre)}</td>
+
                     <td className="p-2 sm:p-3 text-center">
                       <span
                         className="px-2 sm:px-3 py-1 rounded-full text-white font-semibold font-aventura text-xs sm:text-base"
                         style={{
-                          background: fac.total < 75 ? "#c0392b" : fac.total < 80 ? "#f39c12" : "#27ae60",
+                          background: facItem.total < 75 ? "#c0392b" : facItem.total < 80 ? "#f39c12" : "#27ae60",
                         }}
                       >
-                        {fac.total.toFixed(2)}%
+                        {facItem.total.toFixed(2)}%
                       </span>
                     </td>
+
+                    {/* ✅ NUEVO */}
+                    <td className="p-2 sm:p-3 text-center font-bold font-avenir">
+                      {nFac}
+                    </td>
+
                     <td className="p-2 sm:p-3">
                       {toTitle(mejor.nombre)} ({mejor.total.toFixed(2)}%)
                     </td>
@@ -507,7 +612,8 @@ export default function PublicFullDashboard() {
           Porcentaje Global por Criterio
         </h2>
         <div style={{ height: window.innerWidth < 768 ? "250px" : "300px" }}>
-          <canvas ref={canvases.globalCriterios}></canvas>
+          {/* ✅ id para identificar el chart y renderizar "(n=...)" en la etiqueta */}
+          <canvas id="global-criterios-canvas" ref={canvases.globalCriterios}></canvas>
         </div>
 
         <h2 className="text-[#1c3247] text-lg sm:text-xl mt-10 font-aventura">
@@ -529,11 +635,54 @@ export default function PublicFullDashboard() {
           ))}
         </select>
 
+        {/* ✅ mostrar % facultad y n facultad */}
         <h3 className="mt-4 text-lg sm:text-xl font-semibold font-aventura">
-          {toTitle(fac.nombre)} ({fac.total.toFixed(2)}%)
+          {toTitle(fac.nombre)} ({fac.total.toFixed(2)}%){" "}
+          <span className="text-sm font-avenir font-normal text-gray-600">
+            n={votosFacultadTotal(data.votos_por_numero, fac.nombre, data.criterios)}
+          </span>
         </h3>
 
-        <table className="w-full mt-4 border-collapse">
+        {/* ✅ NUEVO: Tabla de n por criterio para la facultad seleccionada */}
+        <h3 className="mt-6 text-lg sm:text-xl font-semibold font-aventura text-[#1c3247]">
+          Votos por criterio en {toTitle(fac.nombre)}
+        </h3>
+
+        <div className="overflow-x-auto mt-3">
+          <table className="w-full border-collapse rounded-lg overflow-hidden shadow-sm">
+            <thead className="bg-[#1c3247] text-white">
+              <tr>
+                <th className="p-2 text-left text-sm sm:text-base font-aventura">Criterio</th>
+                <th className="p-2 text-center text-sm sm:text-base font-aventura">%</th>
+                <th className="p-2 text-center text-sm sm:text-base font-aventura">Votos (n)</th>
+              </tr>
+            </thead>
+            <tbody className="font-avenir text-sm sm:text-base">
+              {data.criterios.map((crit, i) => {
+                const valores = fac.carreras
+                  .map((c) => c.criterios[i])
+                  .filter((v) => !isNaN(v));
+
+                const pct = valores.length
+                  ? valores.reduce((a, b) => a + b, 0) / valores.length
+                  : 0;
+
+                const n = votosCriterioEnFacultad(data.votos_por_numero, crit, fac.nombre);
+
+                return (
+                  <tr key={crit} className="border-b hover:bg-gray-50">
+                    <td className="p-2">{crit}</td>
+                    <td className="p-2 text-center font-aventura">{pct.toFixed(2)}%</td>
+                    <td className="p-2 text-center font-bold">{n}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Tabla de carreras (ya existente) */}
+        <table className="w-full mt-6 border-collapse">
           <thead className="bg-[#1c3247] text-white">
             <tr>
               <th className="p-2 text-left text-sm sm:text-base font-aventura">Carrera</th>
