@@ -21,10 +21,12 @@ import { FileDown, Share2 } from "lucide-react";
 // IMÁGENES PDF (ajusta según tu proyecto)
 import portadaImg from "@/assets/pdf/portada.png?base64";
 import curvaImg from "@/assets/pdf/curva.png?base64";
+import curvadocenteImg from "@/assets/pdf/curvadocente.png?base64";
 import footerImg from "@/assets/pdf/footer.png?base64";
 
 // PDF GEN (ajusta según tu proyecto)
 import { generarReportePDF } from "@/lib/pdfGenerator";
+import { generarReportePDFDocente } from "@/lib/pdfGeneratorDocente";
 
 // Colores institucionales UNEMI
 const COLORES_UNEMI = [
@@ -106,6 +108,7 @@ export default function Dashboard() {
   const [modalPDF, setModalPDF] = useState(false);
   const [pdfFacultadIdx, setPdfFacultadIdx] = useState(0);
   const [pdfCarreraIdx, setPdfCarreraIdx] = useState(0);
+  const [pdfTipo, setPdfTipo] = useState<"Docente" | "Estudiantil">("Estudiantil");
 
   // ✅ NUEVO: filtro por dedicación (solo si existe en data)
   const [dedicaciones, setDedicaciones] = useState<string[]>([]);
@@ -658,6 +661,23 @@ export default function Dashboard() {
                   </Select>
                 </div>
 
+                <div>
+                  <label className="text-sm font-semibold font-avenir">Tipo:</label>
+                  <Select value={pdfTipo} onValueChange={(v) => setPdfTipo(v as any)}>
+                    <SelectTrigger className="font-avenir">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Docente" className="font-avenir">
+                        Docente
+                      </SelectItem>
+                      <SelectItem value="Estudiantil" className="font-avenir">
+                        Estudiantil
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <Button
                   className="w-full h-11 text-base font-semibold font-aventura"
                   onClick={() => {
@@ -666,27 +686,31 @@ export default function Dashboard() {
                     const fac = data.facultades[pdfFacultadIdx];
                     const car = fac.carreras[pdfCarreraIdx];
 
-                    generarReportePDF(
-                      {
-                        facultad: toTitle(fac.nombre),
-                        carrera: toTitle(car.nombre),
-                        periodo: data.periodo,
-                        conteo: data.conteo,
-                        criterios: data.criterios.map((c, idx) => ({
-                          nombre: c,
-                          valor: car.criterios[idx] ?? 0,
-                        })),
-                        promedioGeneral:
-                          car.criterios.reduce((a, x) => a + x, 0) /
-                          car.criterios.length,
-                        porcentajeSatisfaccion: car.total,
-                      },
-                      {
-                        portada: portadaImg,
-                        header: curvaImg,
-                        footer: footerImg,
-                      }
-                    );
+                    const payload = {
+                      facultad: toTitle(fac.nombre),
+                      carrera: toTitle(car.nombre),
+                      periodo: data.periodo,
+                      conteo: data.conteo,
+                      criterios: data.criterios.map((c, idx) => ({
+                        nombre: c,
+                        valor: car.criterios[idx] ?? 0,
+                      })),
+                      promedioGeneral:
+                        car.criterios.reduce((a, x) => a + x, 0) / car.criterios.length,
+                      porcentajeSatisfaccion: car.total,
+                    };
+
+                    const assets = {
+                      portada: portadaImg,
+                      header: pdfTipo === "Docente" ? curvadocenteImg : curvaImg,
+                      footer: footerImg,
+                    };
+
+                    if (pdfTipo === "Docente") {
+                      generarReportePDFDocente(payload, assets);
+                    } else {
+                      generarReportePDF(payload, assets);
+                    }
                   }}
                 >
                   <FileDown className="mr-2 h-4 w-4" /> Generar Reporte
