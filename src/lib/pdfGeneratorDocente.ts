@@ -268,7 +268,7 @@ export const generarReportePDFDocente = async (
 
   const metodologiaItems = [
     `Instrumento: Encuesta en línea con escala de Likert de 5 niveles: (20: Muy insatisfecho – 100: Muy satisfecho).`,
-    `Población objetivo: Docentes en ${data.carrera}.`,
+    `Población objetivo: Docentes de la Carrera: ${data.carrera}.`,
     `Muestra efectiva: ${muestra} docentes respondieron la encuesta.`,
     `Periodo de aplicación: ${data.periodo}`,
     `Criterios evaluados:`
@@ -403,8 +403,22 @@ export const generarReportePDFDocente = async (
   pdf.setFontSize(11);
   pdf.setTextColor(0, 0, 0);
 
+  const porcentaje = data.porcentajeSatisfaccion;
+
+  let conclusionNivel: string;
+
+  if (porcentaje < 21) {
+    conclusionNivel = `La carrera de ${data.carrera} presenta un nivel de satisfacción crítico (${porcentaje.toFixed(1)}%), evidenciando una percepción altamente desfavorable por parte de los docentes.`;
+  } else if (porcentaje < 51) {
+    conclusionNivel = `La carrera de ${data.carrera} alcanza un nivel de satisfacción bajo (${porcentaje.toFixed(1)}%), lo que refleja importantes oportunidades de mejora desde la percepción docente.`;
+  } else if (porcentaje < 71) {
+    conclusionNivel = `La carrera de ${data.carrera} registra un nivel de satisfacción medio (${porcentaje.toFixed(1)}%), indicando una percepción aceptable con aspectos relevantes por fortalecer.`;
+  } else {
+    conclusionNivel = `La carrera de ${data.carrera} alcanzó un nivel de satisfacción del ${porcentaje.toFixed(1)}%, reflejando una percepción positiva por parte de los docentes.`;
+  }
+
   const conclusionesTexts = [
-    `La carrera de ${data.carrera} alcanzó un nivel de satisfacción del ${data.porcentajeSatisfaccion.toFixed(1)}%, reflejando una percepción positiva por parte de los docentes.`,
+    conclusionNivel,
     "Los aspectos mejor valorados representan fortalezas institucionales que deben ser mantenidas y consolidadas.",
     "Las áreas con menor puntuación requieren atención prioritaria para el desarrollo de estrategias de mejora continua."
   ];
