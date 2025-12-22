@@ -577,8 +577,8 @@ export default function PublicFullDashboard() {
         </div>
 
         {/* ✅ Leyenda E */}
-        <div className="mt-2 text-sm font-avenir text-gray-600">
-          <strong>E:</strong> Cantidad de encuestados
+        <div className="mt-4 text-base sm:text-lg font-avenir">
+          <strong className="text-[#fc7e00] ml-3">E:</strong> Cantidad de encuestados
         </div>
 
         {/* ✅ Filtro DEDICACION (solo si existe) */}
@@ -644,7 +644,7 @@ export default function PublicFullDashboard() {
                 </th>
 
                 <th className="p-2 sm:p-3 text-center text-sm sm:text-base font-aventura">
-                  E
+                  Encuestados
                 </th>
 
                 <th className="p-2 sm:p-3 text-left text-sm sm:text-base font-aventura">
@@ -733,11 +733,7 @@ export default function PublicFullDashboard() {
               data.criterios.length
             )}
           </span>
-        </h3>
-
-        <h3 className="mt-6 text-lg sm:text-xl font-semibold font-aventura text-[#1c3247]">
-          E por criterio en {toTitle(fac.nombre)}
-        </h3>
+        </h3>        
 
         <div className="overflow-x-auto mt-3">
           <table className="w-full border-collapse rounded-lg overflow-hidden shadow-sm">
@@ -745,7 +741,7 @@ export default function PublicFullDashboard() {
               <tr>
                 <th className="p-2 text-left text-sm sm:text-base font-aventura">Criterio</th>
                 <th className="p-2 text-center text-sm sm:text-base font-aventura">%</th>
-                <th className="p-2 text-center text-sm sm:text-base font-aventura">E</th>
+                <th className="p-2 text-center text-sm sm:text-base font-aventura">Encuestados</th>
               </tr>
             </thead>
             <tbody className="font-avenir text-sm sm:text-base">
@@ -778,7 +774,7 @@ export default function PublicFullDashboard() {
             <tr>
               <th className="p-2 text-left text-sm sm:text-base font-aventura">Carrera</th>
               <th className="p-2 text-center text-sm sm:text-base font-aventura">Total</th>
-              <th className="p-2 text-center text-sm sm:text-base font-aventura">E</th>
+              <th className="p-2 text-center text-sm sm:text-base font-aventura">Encuestados</th>
             </tr>
           </thead>
           <tbody className="font-avenir text-sm sm:text-base">
