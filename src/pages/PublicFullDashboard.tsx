@@ -144,7 +144,7 @@ function votosCriterioEnCarrera(vpn: any, criterio: string, facNombre: string, c
   return sumConteo15(cc?.[key]);
 }
 
-// votos total por Carrera (sumando todos los criterios) => luego dividir para encuestados
+// votos total por Carrera (sumando todos los criterios)
 function votosCarreraTotal(vpn: any, criterios: string[], facNombre: string, carNombre: string): number {
   let total = 0;
   for (const criterio of criterios) {
@@ -239,7 +239,7 @@ export default function PublicFullDashboard() {
     const isMobile = window.innerWidth < 768;
 
     // Plugin: Etiquetas arriba en naranja (SOLO BARRAS)
-    // ✅ Ajuste: añade "(Encuestados: ...)" en TODOS los charts bar según su id.
+    // ✅ Ajuste: usar "E:" en lugar de "Encuestados:" para no saturar el gráfico.
     const barLabelsTop = {
       id: "barLabelsTop",
       afterDatasetsDraw(chart: Chart) {
@@ -258,39 +258,39 @@ export default function PublicFullDashboard() {
             const val = ds.data[j] as number;
             const yOffset = isMobile ? -5 : -10;
 
-            // FACULTADES (bar): % + Encuestados (votos fac / criterios)
+            // FACULTADES: % + E (votos fac / criterios)
             if (chartId === "facultades-canvas" && data?.votos_por_numero) {
               const facNombre = data.facultades[j]?.nombre;
               const votos = votosFacultadTotal(data.votos_por_numero, facNombre, data.criterios);
-              const enc = encuestadosDesdeVotos(votos, data.criterios.length);
-              ctx.fillText(`${val.toFixed(2)}% (Encuestados: ${enc})`, bar.x, bar.y + yOffset);
+              const e = encuestadosDesdeVotos(votos, data.criterios.length);
+              ctx.fillText(`${val.toFixed(2)}% (E:${e})`, bar.x, bar.y + yOffset);
               return;
             }
 
-            // GLOBAL CRITERIOS (bar): % + Encuestados (directo por criterio)
+            // GLOBAL CRITERIOS: % + E (directo por criterio)
             if (chartId === "global-criterios-canvas" && data?.votos_por_numero) {
               const criterioName = data.criterios[j];
-              const enc = votosCriterioGlobal(data.votos_por_numero, criterioName, data.facultades);
-              ctx.fillText(`${val.toFixed(2)}% (Encuestados: ${enc})`, bar.x, bar.y + yOffset);
+              const e = votosCriterioGlobal(data.votos_por_numero, criterioName, data.facultades);
+              ctx.fillText(`${val.toFixed(2)}% (E:${e})`, bar.x, bar.y + yOffset);
               return;
             }
 
-            // DETALLE CARRERA (bar): % + Encuestados (directo por criterio en carrera)
+            // DETALLE CARRERA: % + E (directo por criterio en carrera)
             if (chartId === "detalle-canvas" && data?.votos_por_numero) {
               const fac = data.facultades[selectedFacIdx];
               const car = fac?.carreras[selectedCarIdx];
               const criterioName = data.criterios[j];
-              const enc = votosCriterioEnCarrera(
+              const e = votosCriterioEnCarrera(
                 data.votos_por_numero,
                 criterioName,
                 fac.nombre,
                 car.nombre
               );
-              ctx.fillText(`${val.toFixed(2)}% (Encuestados: ${enc})`, bar.x, bar.y + yOffset);
+              ctx.fillText(`${val.toFixed(2)}% (E:${e})`, bar.x, bar.y + yOffset);
               return;
             }
 
-            // Default: solo %
+            // Default
             ctx.fillText(val.toFixed(2) + "%", bar.x, bar.y + yOffset);
           });
         });
@@ -338,8 +338,8 @@ export default function PublicFullDashboard() {
               afterLabel: (ctx: any) => {
                 const facNombre = data.facultades[ctx.dataIndex]?.nombre;
                 const votos = votosFacultadTotal(data.votos_por_numero, facNombre, data.criterios);
-                const enc = encuestadosDesdeVotos(votos, data.criterios.length);
-                return `Encuestados: ${enc}`;
+                const e = encuestadosDesdeVotos(votos, data.criterios.length);
+                return `E: ${e}`;
               },
             },
           },
@@ -389,8 +389,8 @@ export default function PublicFullDashboard() {
               ...multilineTooltipCallbacks,
               afterLabel: (ctx: any) => {
                 const criterioName = data.criterios[ctx.dataIndex];
-                const enc = votosCriterioGlobal(data.votos_por_numero, criterioName, data.facultades);
-                return `Encuestados: ${enc}`;
+                const e = votosCriterioGlobal(data.votos_por_numero, criterioName, data.facultades);
+                return `E: ${e}`;
               },
             },
           },
@@ -447,13 +447,13 @@ export default function PublicFullDashboard() {
               ...multilineTooltipCallbacks,
               afterLabel: (ctx: any) => {
                 const criterioName = data.criterios[ctx.dataIndex];
-                const enc = votosCriterioEnCarrera(
+                const e = votosCriterioEnCarrera(
                   data.votos_por_numero,
                   criterioName,
                   fac.nombre,
                   car.nombre
                 );
-                return `Encuestados: ${enc}`;
+                return `E: ${e}`;
               },
             },
           },
@@ -501,13 +501,13 @@ export default function PublicFullDashboard() {
               title: (items: any) => data.criterios[items[0].dataIndex],
               label: (context: any) => {
                 const criterioName = data.criterios[context.dataIndex];
-                const enc = votosCriterioEnCarrera(
+                const e = votosCriterioEnCarrera(
                   data.votos_por_numero,
                   criterioName,
                   fac.nombre,
                   car.nombre
                 );
-                return `${context.parsed.r.toFixed(2)}% — Encuestados: ${enc}`;
+                return `${context.parsed.r.toFixed(2)}% — E: ${e}`;
               },
             },
           },
@@ -576,6 +576,11 @@ export default function PublicFullDashboard() {
           <strong className="text-[#fc7e00] ml-3">Período:</strong> {data.periodo}
         </div>
 
+        {/* ✅ Leyenda E */}
+        <div className="mt-2 text-sm font-avenir text-gray-600">
+          <strong>E:</strong> Cantidad de encuestados
+        </div>
+
         {/* ✅ Filtro DEDICACION (solo si existe) */}
         {dedicaciones.length > 0 && (
           <div className="mt-4 max-w-sm">
@@ -602,7 +607,7 @@ export default function PublicFullDashboard() {
           </div>
         )}
 
-        {/* ✅ Porcentaje global + Encuestados */}
+        {/* ✅ Porcentaje global + E */}
         <div className="flex flex-col sm:flex-row items-center gap-4 mt-6">
           <span className="text-lg sm:text-xl font-bold text-[#1c3247] font-aventura">
             Porcentaje Global:
@@ -611,7 +616,7 @@ export default function PublicFullDashboard() {
           <div className="bg-[#fc7e00] text-white text-3xl sm:text-4xl font-bold px-8 sm:px-10 py-3 sm:py-4 rounded-xl font-aventura text-center">
             {data.global.toFixed(2)}%
             <div className="text-sm font-avenir font-normal opacity-90 mt-1">
-              Encuestados: {encuestadosGlobal}
+              E: {encuestadosGlobal}
             </div>
           </div>
         </div>
@@ -638,9 +643,8 @@ export default function PublicFullDashboard() {
                   Total Global
                 </th>
 
-                {/* ✅ CAMBIO */}
                 <th className="p-2 sm:p-3 text-center text-sm sm:text-base font-aventura">
-                  Encuestados
+                  E
                 </th>
 
                 <th className="p-2 sm:p-3 text-left text-sm sm:text-base font-aventura">
@@ -658,7 +662,7 @@ export default function PublicFullDashboard() {
                 const peor = carrerasOrdenadas[carrerasOrdenadas.length - 1];
 
                 const votosFac = votosFacultadTotal(data.votos_por_numero, facItem.nombre, data.criterios);
-                const encFac = encuestadosDesdeVotos(votosFac, data.criterios.length);
+                const eFac = encuestadosDesdeVotos(votosFac, data.criterios.length);
 
                 return (
                   <tr key={idx} className="border-b hover:bg-gray-50">
@@ -675,9 +679,8 @@ export default function PublicFullDashboard() {
                       </span>
                     </td>
 
-                    {/* ✅ CAMBIO */}
                     <td className="p-2 sm:p-3 text-center font-bold font-avenir">
-                      {encFac}
+                      {eFac}
                     </td>
 
                     <td className="p-2 sm:p-3">
@@ -721,11 +724,10 @@ export default function PublicFullDashboard() {
           ))}
         </select>
 
-        {/* ✅ mostrar % facultad y Encuestados facultad */}
         <h3 className="mt-4 text-lg sm:text-xl font-semibold font-aventura">
           {toTitle(fac.nombre)} ({fac.total.toFixed(2)}%){" "}
           <span className="text-sm font-avenir font-normal text-gray-600">
-            Encuestados:{" "}
+            E:{" "}
             {encuestadosDesdeVotos(
               votosFacultadTotal(data.votos_por_numero, fac.nombre, data.criterios),
               data.criterios.length
@@ -733,9 +735,8 @@ export default function PublicFullDashboard() {
           </span>
         </h3>
 
-        {/* ✅ Tabla por criterio (facultad) */}
         <h3 className="mt-6 text-lg sm:text-xl font-semibold font-aventura text-[#1c3247]">
-          Encuestados por criterio en {toTitle(fac.nombre)}
+          E por criterio en {toTitle(fac.nombre)}
         </h3>
 
         <div className="overflow-x-auto mt-3">
@@ -744,7 +745,7 @@ export default function PublicFullDashboard() {
               <tr>
                 <th className="p-2 text-left text-sm sm:text-base font-aventura">Criterio</th>
                 <th className="p-2 text-center text-sm sm:text-base font-aventura">%</th>
-                <th className="p-2 text-center text-sm sm:text-base font-aventura">Encuestados</th>
+                <th className="p-2 text-center text-sm sm:text-base font-aventura">E</th>
               </tr>
             </thead>
             <tbody className="font-avenir text-sm sm:text-base">
@@ -757,13 +758,13 @@ export default function PublicFullDashboard() {
                   ? valores.reduce((a, b) => a + b, 0) / valores.length
                   : 0;
 
-                const enc = votosCriterioEnFacultad(data.votos_por_numero, crit, fac.nombre);
+                const e = votosCriterioEnFacultad(data.votos_por_numero, crit, fac.nombre);
 
                 return (
                   <tr key={crit} className="border-b hover:bg-gray-50">
                     <td className="p-2">{crit}</td>
                     <td className="p-2 text-center font-aventura">{pct.toFixed(2)}%</td>
-                    <td className="p-2 text-center font-bold">{enc}</td>
+                    <td className="p-2 text-center font-bold">{e}</td>
                   </tr>
                 );
               })}
@@ -771,22 +772,29 @@ export default function PublicFullDashboard() {
           </table>
         </div>
 
-        {/* Tabla de carreras (ya existente) */}
+        {/* ✅ Tabla de carreras: agregar E */}
         <table className="w-full mt-6 border-collapse">
           <thead className="bg-[#1c3247] text-white">
             <tr>
               <th className="p-2 text-left text-sm sm:text-base font-aventura">Carrera</th>
               <th className="p-2 text-center text-sm sm:text-base font-aventura">Total</th>
+              <th className="p-2 text-center text-sm sm:text-base font-aventura">E</th>
             </tr>
           </thead>
           <tbody className="font-avenir text-sm sm:text-base">
             {fac.carreras.map((car, i) => {
               const color = car.total < 75 ? "#c0392b" : car.total < 80 ? "#f39c12" : "#27ae60";
+              const votosCar = votosCarreraTotal(data.votos_por_numero, data.criterios, fac.nombre, car.nombre);
+              const eCar = encuestadosDesdeVotos(votosCar, data.criterios.length);
+
               return (
                 <tr key={i}>
                   <td className="p-2 border-b">{toTitle(car.nombre)}</td>
                   <td className="p-2 text-center font-bold border-b font-aventura" style={{ color }}>
                     {car.total.toFixed(2)}%
+                  </td>
+                  <td className="p-2 text-center font-bold border-b">
+                    {eCar}
                   </td>
                 </tr>
               );
@@ -810,26 +818,12 @@ export default function PublicFullDashboard() {
           <canvas id="detalle-canvas" ref={canvases.detalle}></canvas>
         </div>
 
-        {/* Radar */}
-        {(() => {
-          const car = fac.carreras[selectedCarIdx];
-          const votosCar = votosCarreraTotal(data.votos_por_numero, data.criterios, fac.nombre, car.nombre);
-          const encCar = encuestadosDesdeVotos(votosCar, data.criterios.length);
-
-          return (
-            <>
-              <h3 className="text-[#1c3247] text-lg sm:text-xl mt-12 font-aventura">
-                Radar de la Carrera{" "}
-                <span className="text-sm font-avenir font-normal text-gray-600">
-                  (Encuestados: {encCar})
-                </span>
-              </h3>
-              <div style={{ height: window.innerWidth < 768 ? "300px" : "450px" }}>
-                <canvas ref={canvases.radar}></canvas>
-              </div>
-            </>
-          );
-        })()}
+        <h3 className="text-[#1c3247] text-lg sm:text-xl mt-12 font-aventura">
+          Radar de la Carrera
+        </h3>
+        <div style={{ height: window.innerWidth < 768 ? "300px" : "450px" }}>
+          <canvas ref={canvases.radar}></canvas>
+        </div>
       </div>
     </div>
   );
