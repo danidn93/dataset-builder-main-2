@@ -409,9 +409,9 @@ export const generarReportePDFDocente = async (
     "Las áreas con menor puntuación requieren atención prioritaria para el desarrollo de estrategias de mejora continua."
   ];
 
-  conclusionesTexts.forEach((texto) => {
-    const lines = pdf.splitTextToSize(texto, pageWidth - 2 * margin);
-    y = drawJustifiedText(pdf, texto, margin, y, pageWidth - 2 * margin);
+  conclusionesTexts.forEach((texto, idx) => {
+    const lines = pdf.splitTextToSize(`${idx + 1}. ${texto}`, pageWidth - 2 * margin -5);
+    y = drawJustifiedText(pdf, `${idx + 1}. ${texto}`, margin + 5, y, pageWidth - 2 * margin - 5);
     y += 5;
   });
 
