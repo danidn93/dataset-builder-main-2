@@ -10,19 +10,18 @@ const corsHeaders = {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", {
-      status: 200,
-      headers: corsHeaders,
-    });
-  }
+    return new Response("ok", { status: 200, headers: corsHeaders });
+    }
 
   try {
-    const { token } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const token = body?.token;
+    const dedicacion = body?.dedicacion ?? null; // string | null
 
     if (!token) {
       return new Response(JSON.stringify({ error: "Falta token" }), {
         status: 400,
-        headers: corsHeaders,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -31,32 +30,77 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const { data: link } = await client
+    // 1) Buscar link por token
+    const { data: link, error: linkErr } = await client
       .from("dataset_version_links")
       .select("version_id")
       .eq("token", token)
       .eq("tipo", "PUBLIC_DASHBOARD")
       .single();
 
-    if (!link) {
+    if (linkErr || !link) {
       return new Response(
         JSON.stringify({ error: "Token inválido o expirado" }),
-        { status: 400, headers: corsHeaders }
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
       );
     }
 
-    const { data: version } = await client
+    // 2) Obtener versión
+    const { data: version, error: verErr } = await client
       .from("dataset_versions")
       .select("id, periodo, dataset_id")
       .eq("id", link.version_id)
       .single();
 
-    const { data: dataset } = await client
+    if (verErr || !version) {
+      return new Response(JSON.stringify({ error: "Versión no encontrada" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // 3) Obtener dataset
+    const { data: dataset, error: dsErr } = await client
       .from("datasets")
       .select("nombre")
       .eq("id", version.dataset_id)
       .single();
 
+    if (dsErr || !dataset) {
+      return new Response(JSON.stringify({ error: "Dataset no encontrado" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // 4) Obtener dedicaciones únicas desde dataset_rows (si existen)
+    //    Nota: No usamos distinct directo porque PostgREST es limitado con jsonb.
+    //    Traemos solo data y extraemos DEDICACION en Deno.
+    let dedicaciones: string[] = [];
+    try {
+      const { data: rows, error: rowsErr } = await client
+        .from("dataset_rows")
+        .select("data")
+        .eq("version_id", version.id);
+
+      if (!rowsErr && Array.isArray(rows)) {
+        const set = new Set<string>();
+        for (const r of rows) {
+          const val = (r as any)?.data?.DEDICACION;
+          if (val !== undefined && val !== null && String(val).trim() !== "") {
+            set.add(String(val).trim());
+          }
+        }
+        dedicaciones = Array.from(set);
+      }
+    } catch {
+      dedicaciones = [];
+    }
+
+    // 5) Llamar analisis-version con dedicacion opcional
     const analysis = await fetch(
       `${Deno.env.get("SUPABASE_URL")}/functions/v1/analisis-version`,
       {
@@ -66,13 +110,17 @@ serve(async (req) => {
           apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
           Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!}`,
         },
-        body: JSON.stringify({ versionId: version.id }),
+        body: JSON.stringify({
+          versionId: version.id,
+          dedicacion: dedicacion && dedicacion !== "ALL" ? dedicacion : null,
+        }),
       }
     ).then((r) => r.json());
 
-    // ✅ FIX: incluir version_id en el payload
+    // 6) Payload (manteniendo tu estructura, agregando dedicaciones)
     const payload = {
       version_id: version.id,
+      dedicaciones, // ✅ NUEVO
       global: analysis.global,
       criterios: analysis.criterios,
       facultades: analysis.facultades,
@@ -83,15 +131,12 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({ data: payload }), {
       status: 200,
-      headers: {
-        ...corsHeaders,
-        "Content-Type": "application/json",
-      },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
-    return new Response(JSON.stringify({ error: e.message }), {
+    return new Response(JSON.stringify({ error: e?.message ?? "Error" }), {
       status: 500,
-      headers: corsHeaders,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
